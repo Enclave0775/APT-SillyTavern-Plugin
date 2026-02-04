@@ -1,0 +1,28 @@
+<div class="auto-prompt-toggler-editor">
+    <div class="flex-container flexFlowColumn gap-10">
+        <div class="flex-container align-items-center">
+            <div class="flex1">
+                <label data-i18n="Trigger (Regex)">觸發條件 (正則表達式)</label>
+                <input type="text" class="text_pole" id="apt_editor_trigger" placeholder="例如: Detected anomaly" />
+            </div>
+        </div>
+        
+        <div class="flex-container align-items-center">
+            <div class="flex1">
+                <label data-i18n="Target Prompt">目標提示詞</label>
+                <select class="text_pole" id="apt_editor_prompt_id"></select>
+            </div>
+        </div>
+
+        <div class="flex-container align-items-center">
+            <div class="flex1">
+                <label data-i18n="Action">動作</label>
+                <select class="text_pole" id="apt_editor_action">
+                    <option value="enable">開啟 (Enable)</option>
+                    <option value="disable">關閉 (Disable)</option>
+                    <option value="toggle">切換 (Toggle)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>

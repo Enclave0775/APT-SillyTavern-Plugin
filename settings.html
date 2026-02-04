@@ -1,0 +1,39 @@
+<div id="auto_prompt_toggler_settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>自動提示詞切換規則</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div id="auto_prompt_toggler_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
+                <div style="font-style: italic; color: gray; text-align: center;">暫無規則</div>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
+                <input type="file" id="auto_prompt_toggler_import_file" accept=".json" style="display: none;" />
+                <button id="auto_prompt_toggler_add_rule" class="menu_button apt-menu_button">新建規則</button>
+                <button id="auto_prompt_toggler_import" class="menu_button apt-menu_button">匯入規則...</button>
+                <button id="auto_prompt_toggler_clear" class="menu_button apt-menu_button">清空列表</button>
+            </div>
+            <div>
+            <p>對於插件有問題可聯絡提問</p>
+            <p>原作者 (Original Author):</p>
+            <ul>
+                <li>Discord: enclave_x0775</li>
+                <li>Telegram: @Enclave_X</li>
+            </ul>
+        </div>
+        </div>
+    </div>
+</div>
+
+
+<template id="auto_prompt_toggler_rule_item_template">
+    <div class="apt-rule-item" style="display: flex; align-items: center; margin-bottom: 4px; padding: 4px; background-color: var(--background-color-tertiary); border-radius: 4px;">
+        <input type="checkbox" class="apt-rule-enable" style="margin-right: 8px;" title="啟用/停用">
+        <span class="apt-rule-summary" style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; cursor: default;"></span>
+        
+        <div class="menu_button fa-solid fa-pen-to-square rule-edit" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="編輯"></div>
+        <div class="menu_button fa-solid fa-download rule-export" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="匯出"></div>
+        <div class="menu_button fa-solid fa-trash rule-delete" style="cursor: pointer; padding: 5px; color: var(--smart-theme-color);" title="刪除"></div>
+    </div>
+</template>
