@@ -25,13 +25,13 @@
     5.  點擊「僅為我安裝 (Install just for me)」或「為所有使用者安裝 (Install for all users)」。
 
 2.  **設定規則**：
-    *   開啟 SillyTavern 的 **Extensions (擴充功能)** 面板。
+    *   開啟 SillyTavern 的 **擴充功能 (Extensions)** 面板。
     *   找到 **自動提示詞切換規則 (Auto Prompt Toggler)** 設定區塊。
     *   點擊 **新增規則 (Add Rule)**。
     *   **觸發條件 (Trigger)**：輸入正規表達式 (Regex)。例如：`Chapter \d+` 會匹配 "Chapter 1" 等文字。
-    *   **Target Prompt (目標提示詞)**：從下拉選單選擇要控制的提示詞。
-    *   **Action (動作)**：選擇要執行的動作 (Enable/Disable/Toggle)。
-    *   點擊 **Save (儲存)**。
+    *   **目標提示詞 (Target Prompt)**：從下拉選單選擇要控制的提示詞。
+    *   **動作 (Action)**：選擇要執行的動作 (Enable/Disable/Toggle)。
+    *   點擊 **儲存 (Save)**。
 
 3.  **實際運作**：
     *   當 AI 的回覆內容匹配到您設定的 Trigger 時，插件會自動執行對應的動作，並調整提示詞的狀態。
