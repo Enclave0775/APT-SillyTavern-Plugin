@@ -2,7 +2,7 @@
     "display_name": "APT",
     "author": "Enclave_X",
     "description": "Automatically toggles Chat Completion Prompt entries based on message content.",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "js": "index.js",
     "css": "style.css",
     "homePage": "https://github.com/Enclave0775/CSTT-SillyTavern-Plugin"
