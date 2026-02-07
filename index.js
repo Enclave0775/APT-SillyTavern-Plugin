@@ -1,10 +1,12 @@
 import { chat, eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
 import { extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { promptManager } from '../../../openai.js';
-import { download, getFileText, getSortableDelay } from '../../../utils.js';
+import { download, getFileText, getSortableDelay, escapeHtml } from '../../../utils.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 
 const SETTINGS_KEY = 'auto_prompt_toggler';
+const SETTINGS_KEY_PROFILES = 'auto_prompt_toggler_profiles';
+const SETTINGS_KEY_PROFILE = 'auto_prompt_toggler_current_profile';
 
 let chatObserver = null;
 let lastMessageId = null;
@@ -15,21 +17,90 @@ function getRules() {
     return extension_settings[SETTINGS_KEY] || [];
 }
 
-function saveRules(rules) {
-    extension_settings[SETTINGS_KEY] = rules;
+function getProfiles() {
+    return extension_settings[SETTINGS_KEY_PROFILES] || {};
+}
+
+function getCurrentProfileName() {
+    return extension_settings[SETTINGS_KEY_PROFILE] || 'Default';
+}
+
+function setCurrentProfileName(name) {
+    const profiles = getProfiles();
+    if (!profiles[name]) return;
+    
+    extension_settings[SETTINGS_KEY_PROFILE] = name;
+    extension_settings[SETTINGS_KEY] = profiles[name];
     saveSettingsDebounced();
 }
 
+function saveRules(rules) {
+    extension_settings[SETTINGS_KEY] = rules;
+    
+    // Sync to profile
+    const current = extension_settings[SETTINGS_KEY_PROFILE] || 'Default';
+    if (!extension_settings[SETTINGS_KEY_PROFILES]) {
+        extension_settings[SETTINGS_KEY_PROFILES] = {};
+    }
+    extension_settings[SETTINGS_KEY_PROFILES][current] = rules;
+
+    saveSettingsDebounced();
+}
+
+function renderProfileSelect() {
+    const select = $('#apt_profile_select');
+    select.empty();
+    const profiles = getProfiles();
+    const current = getCurrentProfileName();
+    
+    Object.keys(profiles).sort().forEach(name => {
+        const option = $('<option>').val(name).text(name);
+        if (name === current) option.prop('selected', true);
+        select.append(option);
+    });
+}
+
 function getAvailablePrompts() {
-    if (!promptManager || !promptManager.serviceSettings || !promptManager.serviceSettings.prompts) {
+    if (!promptManager) return [];
+    
+    // Get the authoritative order list directly from PromptManager
+    // This ensures we ONLY get prompts that are actually in the current order
+    let activeOrder = [];
+    try {
+        if (typeof promptManager.getPromptOrderForCharacter === 'function') {
+            activeOrder = promptManager.getPromptOrderForCharacter(promptManager.activeCharacter);
+        } else {
+            // Fallback for older versions if method missing (unlikely)
+            console.warn('APT: getPromptOrderForCharacter not found');
+            return [];
+        }
+    } catch (e) {
+        console.error("APT: Failed to get prompt order", e);
         return [];
     }
-    return promptManager.serviceSettings.prompts;
+    
+    if (!activeOrder || !Array.isArray(activeOrder)) return [];
+    
+    // Map order entries to prompt objects
+    const result = activeOrder.map(entry => {
+        if (!entry || !entry.identifier) return null;
+        // Strictly follow PromptManager logic: only include prompts that define a valid object.
+        // If getPromptById returns null (definition missing), we should exclude it too.
+        return promptManager.getPromptById(entry.identifier);
+    });
+    
+    // Filter out nulls
+    return result.filter(p => p !== null);
 }
 
 async function openEditor(ruleIndex = -1) {
     const rules = getRules();
-    const rule = ruleIndex >= 0 ? rules[ruleIndex] : { action: 'enable', enabled: true };
+    const rule = ruleIndex >= 0 ? rules[ruleIndex] : { action: 'enable', enabled: true, promptIds: [] };
+    
+    // Migration for old rules
+    if (rule.promptId && !rule.promptIds) {
+        rule.promptIds = [rule.promptId];
+    }
     
     const editorTemplate = await renderExtensionTemplateAsync('third-party/APT-SillyTavern-Plugin', 'editor');
     const editorHtml = $(editorTemplate);
@@ -38,12 +109,41 @@ async function openEditor(ruleIndex = -1) {
     editorHtml.find('#apt_editor_trigger').val(rule.trigger || '');
     editorHtml.find('#apt_editor_action').val(rule.action || 'enable');
     
-    const promptSelect = editorHtml.find('#apt_editor_prompt_id');
+    const promptList = editorHtml.find('#apt_editor_prompt_list');
     const prompts = getAvailablePrompts();
     prompts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // Debug info
+    const charId = promptManager?.activeCharacter?.id ?? 'unknown';
+    console.log(`[APT] Editor opened. Active Character ID: ${charId}. Found ${prompts.length} prompts.`);
+    editorHtml.find('.apt-prompt-list').after(`<div style="font-size: 0.8em; color: gray; margin-top: 5px;">Active CharID: ${charId} | Prompts: ${prompts.length}</div>`);
     
     prompts.forEach(p => {
-        promptSelect.append(new Option(p.name || p.identifier, p.identifier, false, p.identifier === rule.promptId));
+        const isSelected = rule.promptIds && rule.promptIds.includes(p.identifier);
+        // Clean identifier for ID usage
+        const cleanId = p.identifier.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const uniqueId = `apt_prompt_${cleanId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Robust display name: prefer name, fallback to identifier. Handle whitespace-only names.
+        let displayName = p.name;
+        if (!displayName || (typeof displayName === 'string' && displayName.trim() === '')) {
+            displayName = p.identifier;
+        }
+
+        // Skip invalid prompts that would result in blank entries
+        if (!displayName || (typeof displayName === 'string' && displayName.trim() === '')) {
+            return;
+        }
+
+        const item = $(`
+            <div class="apt-prompt-item">
+                <input type="checkbox" id="${uniqueId}" value="${escapeHtml(p.identifier)}" ${isSelected ? 'checked' : ''}>
+                <label for="${uniqueId}" title="${escapeHtml(p.identifier)}">
+                    ${escapeHtml(displayName)}
+                </label>
+            </div>
+        `);
+        promptList.append(item);
     });
     
     // Show popup
@@ -54,13 +154,14 @@ async function openEditor(ruleIndex = -1) {
     
     if (popupResult) {
         const newTrigger = editorHtml.find('#apt_editor_trigger').val();
-        const newPromptId = editorHtml.find('#apt_editor_prompt_id').val();
+        // Collect checked values
+        const newPromptIds = editorHtml.find('#apt_editor_prompt_list input:checked').map((_, el) => $(el).val()).get();
         const newAction = editorHtml.find('#apt_editor_action').val();
         
-        if (newPromptId) {
+        if (newPromptIds && newPromptIds.length > 0) {
             const newRule = { 
                 trigger: newTrigger, 
-                promptId: newPromptId, 
+                promptIds: newPromptIds, 
                 action: newAction,
                 enabled: rule.enabled ?? true
             };
@@ -108,22 +209,50 @@ function renderRulesList() {
         });
 
         // Populate summary
-        const prompt = getAvailablePrompts().find(p => p.identifier === rule.promptId);
-        const promptName = prompt ? (prompt.name || prompt.identifier) : rule.promptId;
+        let promptNames = [];
+        if (rule.promptIds && Array.isArray(rule.promptIds)) {
+            promptNames = rule.promptIds.map(id => {
+                const prompt = getAvailablePrompts().find(p => p.identifier === id);
+                return prompt ? (prompt.name || prompt.identifier) : id;
+            });
+        } else if (rule.promptId) {
+            // Backward compatibility
+            const prompt = getAvailablePrompts().find(p => p.identifier === rule.promptId);
+            promptNames = [prompt ? (prompt.name || prompt.identifier) : rule.promptId];
+        }
+
         const actionText = {
             'enable': '開啟',
             'disable': '關閉',
             'toggle': '切換'
         }[rule.action] || rule.action;
 
-        const summaryText = `${rule.trigger || '(無觸發條件)'} ➜ ${promptName} (${actionText})`;
+        let promptDisplay = '';
+        if (promptNames.length > 1) {
+            promptDisplay = ` ${promptNames.length} 個提示詞`;
+        } else {
+            promptDisplay = promptNames.join(', ');
+        }
+
+        const summaryText = `${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay} (${actionText})`;
         item.find('.apt-rule-summary').text(summaryText);
-        item.find('.apt-rule-summary').attr('title', summaryText);
+        
+        // Full text in title for hover
+        const titleText = `${rule.trigger || '(無觸發條件)'} ➜ ${promptNames.join(', ')} (${actionText})`;
+        item.find('.apt-rule-summary').attr('title', titleText);
         
         // Buttons
         item.find('.rule-edit').on('click', (e) => {
             e.stopPropagation();
             openEditor(index);
+        });
+
+        item.find('.rule-duplicate').on('click', (e) => {
+            e.stopPropagation();
+            const newRule = JSON.parse(JSON.stringify(rule));
+            rules.splice(index + 1, 0, newRule);
+            saveRules(rules);
+            renderRulesList();
         });
         
         item.find('.rule-delete').on('click', (e) => {
@@ -158,7 +287,7 @@ function processText(text) {
 
     currentRules.forEach((rule, index) => {
         if (rule.enabled === false) return;
-        if (!rule.trigger || !rule.promptId) return;
+        if (!rule.trigger || (!rule.promptId && (!rule.promptIds || rule.promptIds.length === 0))) return;
         if (triggeredRules.has(index)) return; 
 
         try {
@@ -167,32 +296,37 @@ function processText(text) {
                 triggeredRules.add(index);
                 
                 if (!promptManager) return;
-                const entry = promptManager.getPromptOrderEntry(promptManager.activeCharacter, rule.promptId);
+
+                const targetIds = rule.promptIds || [rule.promptId];
                 
-                if (entry) {
-                    const prompt = promptManager.getPromptById(rule.promptId);
+                targetIds.forEach(pId => {
+                    const entry = promptManager.getPromptOrderEntry(promptManager.activeCharacter, pId);
                     
-                    let newState = entry.enabled;
-                    let shouldChange = false;
+                    if (entry) {
+                        const prompt = promptManager.getPromptById(pId);
+                        
+                        let newState = entry.enabled;
+                        let shouldChange = false;
 
-                    if (rule.action === 'enable' && !entry.enabled) {
-                        newState = true;
-                        shouldChange = true;
-                    } else if (rule.action === 'disable' && entry.enabled) {
-                        newState = false;
-                        shouldChange = true;
-                    } else if (rule.action === 'toggle') {
-                        newState = !entry.enabled;
-                        shouldChange = true;
-                    }
+                        if (rule.action === 'enable' && !entry.enabled) {
+                            newState = true;
+                            shouldChange = true;
+                        } else if (rule.action === 'disable' && entry.enabled) {
+                            newState = false;
+                            shouldChange = true;
+                        } else if (rule.action === 'toggle') {
+                            newState = !entry.enabled;
+                            shouldChange = true;
+                        }
 
-                    if (shouldChange) {
-                        entry.enabled = newState;
-                        changed = true;
-                        const status = newState ? '開啟' : '關閉';
-                        toastr.info(`${status}提示詞: ${prompt.name}`, 'Auto Prompt Toggler');
+                        if (shouldChange) {
+                            entry.enabled = newState;
+                            changed = true;
+                            const status = newState ? '開啟' : '關閉';
+                            toastr.info(`${status}提示詞: ${prompt.name}`, 'Auto Prompt Toggler');
+                        }
                     }
-                }
+                });
             }
         } catch (e) {
             console.error('[AutoPromptToggler] Error processing rule:', e);
@@ -254,14 +388,152 @@ jQuery(async () => {
     const settingsHtml = await renderExtensionTemplateAsync('third-party/APT-SillyTavern-Plugin', 'settings');
     $('#extensions_settings').append(settingsHtml);
 
+    // Profile Management Init
+    if (!extension_settings[SETTINGS_KEY_PROFILES]) {
+        extension_settings[SETTINGS_KEY_PROFILES] = {
+            'Default': extension_settings[SETTINGS_KEY] || []
+        };
+        extension_settings[SETTINGS_KEY_PROFILE] = 'Default';
+        saveSettingsDebounced();
+    }
+    
+    renderProfileSelect();
+
+    $('#apt_profile_select').on('change', function() {
+        const newProfile = $(this).val();
+        setCurrentProfileName(newProfile);
+        renderRulesList();
+    });
+
+    $('#apt_profile_new').on('click', () => {
+        const name = prompt('請輸入新設定檔名稱 (Enter new profile name):');
+        if (name && name.trim()) {
+            const cleanName = name.trim();
+            const profiles = getProfiles();
+            if (profiles[cleanName]) {
+                toastr.error('設定檔名稱已存在');
+                return;
+            }
+            // Create new profile (empty)
+            extension_settings[SETTINGS_KEY_PROFILES][cleanName] = [];
+            setCurrentProfileName(cleanName);
+            renderProfileSelect();
+            renderRulesList();
+            toastr.success(`已建立設定檔: ${cleanName}`);
+        }
+    });
+
+    $('#apt_profile_rename').on('click', () => {
+        const current = getCurrentProfileName();
+        const newName = prompt(`重新命名設定檔 "${current}" 為:`, current);
+        if (newName && newName.trim() && newName !== current) {
+            const cleanName = newName.trim();
+            const profiles = getProfiles();
+            if (profiles[cleanName]) {
+                toastr.error('設定檔名稱已存在');
+                return;
+            }
+            profiles[cleanName] = profiles[current];
+            delete profiles[current];
+            extension_settings[SETTINGS_KEY_PROFILES] = profiles;
+            extension_settings[SETTINGS_KEY_PROFILE] = cleanName;
+            saveSettingsDebounced();
+            
+            renderProfileSelect();
+            toastr.success(`已重新命名為: ${cleanName}`);
+        }
+    });
+
+    $('#apt_profile_delete').on('click', () => {
+        const current = getCurrentProfileName();
+        const profiles = getProfiles();
+        const keys = Object.keys(profiles);
+        
+        if (keys.length <= 1) {
+            toastr.error('無法刪除最後一個設定檔');
+            return;
+        }
+        
+        if (confirm(`確定要刪除設定檔 "${current}" 嗎?`)) {
+            delete profiles[current];
+            extension_settings[SETTINGS_KEY_PROFILES] = profiles;
+            const next = Object.keys(profiles)[0];
+            setCurrentProfileName(next);
+            renderProfileSelect();
+            renderRulesList();
+            toastr.info(`已刪除設定檔: ${current}`);
+        }
+    });
+
+    $('#apt_profile_export').on('click', () => {
+        const rules = getRules();
+        const currentProfile = getCurrentProfileName();
+        const json = JSON.stringify(rules, null, 4);
+        download(json, `auto_prompt_toggler_${currentProfile}.json`, 'application/json');
+    });
+
+    $('#apt_profile_import').on('click', () => {
+        $('#apt_profile_import_file').trigger('click');
+    });
+
+    $('#apt_profile_import_file').on('change', async function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        try {
+            const text = await getFileText(file);
+            const rules = JSON.parse(text);
+            
+            if (Array.isArray(rules)) {
+                let defaultName = file.name.replace(/\.json$/i, '');
+                defaultName = defaultName.replace(/^auto_prompt_toggler_/, '');
+                
+                const name = prompt('請輸入匯入的設定檔名稱 (Enter imported profile name):', defaultName);
+                
+                if (name && name.trim()) {
+                    const cleanName = name.trim();
+                    const profiles = getProfiles();
+                    
+                    if (profiles[cleanName]) {
+                        if (!confirm(`設定檔 "${cleanName}" 已存在。是否覆蓋?`)) {
+                            this.value = '';
+                            return;
+                        }
+                    }
+
+                    rules.forEach(r => {
+                        if (typeof r.enabled === 'undefined') r.enabled = true;
+                    });
+                    
+                    if (!extension_settings[SETTINGS_KEY_PROFILES]) {
+                        extension_settings[SETTINGS_KEY_PROFILES] = {};
+                    }
+                    extension_settings[SETTINGS_KEY_PROFILES][cleanName] = rules;
+                    setCurrentProfileName(cleanName);
+                    renderProfileSelect();
+                    renderRulesList();
+                    toastr.success(`已匯入設定檔: ${cleanName}`);
+                }
+            } else {
+                toastr.error('無效的規則檔案', 'Auto Prompt Toggler');
+            }
+        } catch (e) {
+            console.error(e);
+            toastr.error('匯入失敗: ' + e.message, 'Auto Prompt Toggler');
+        }
+        
+        this.value = ''; 
+    });
+
     $('#auto_prompt_toggler_add_rule').on('click', () => {
         openEditor();
     });
 
     $('#auto_prompt_toggler_export').on('click', () => {
         const rules = getRules();
+        const currentProfile = getCurrentProfileName();
         const json = JSON.stringify(rules, null, 4);
-        download(json, 'auto_prompt_toggler_rules.json', 'application/json');
+        download(json, `auto_prompt_toggler_${currentProfile}.json`, 'application/json');
     });
 
     $('#auto_prompt_toggler_import').on('click', () => {

@@ -5,10 +5,19 @@
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
+            <div class="apt-profile-manager" style="display: flex; align-items: center; margin-bottom: 10px; gap: 5px;">
+                <select id="apt_profile_select" class="text_pole" style="flex-grow: 1;" title="選擇設定檔"></select>
+                <div id="apt_profile_new" class="menu_button fa-solid fa-plus" title="新增設定檔" style="padding: 8px;"></div>
+                <div id="apt_profile_import" class="menu_button fa-solid fa-file-import" title="匯入設定檔 (作為新設定檔)" style="padding: 8px;"></div>
+                <div id="apt_profile_rename" class="menu_button fa-solid fa-pen-to-square" title="重新命名" style="padding: 8px;"></div>
+                <div id="apt_profile_export" class="menu_button fa-solid fa-file-export" title="匯出設定檔" style="padding: 8px;"></div>
+                <div id="apt_profile_delete" class="menu_button fa-solid fa-trash" title="刪除設定檔" style="padding: 8px; color: var(--smart-theme-color);"></div>
+            </div>
             <div id="auto_prompt_toggler_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
                 <div style="font-style: italic; color: gray; text-align: center;">暫無規則</div>
             </div>
             <div style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
+                <input type="file" id="apt_profile_import_file" accept=".json" style="display: none;" />
                 <input type="file" id="auto_prompt_toggler_import_file" accept=".json" style="display: none;" />
                 <button id="auto_prompt_toggler_add_rule" class="menu_button apt-menu_button">新建規則</button>
                 <button id="auto_prompt_toggler_import" class="menu_button apt-menu_button">匯入規則...</button>
@@ -33,6 +42,7 @@
         <span class="apt-rule-summary" style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; cursor: default;"></span>
         
         <div class="menu_button fa-solid fa-pen-to-square rule-edit" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="編輯"></div>
+        <div class="menu_button fa-solid fa-copy rule-duplicate" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="複製"></div>
         <div class="menu_button fa-solid fa-download rule-export" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="匯出"></div>
         <div class="menu_button fa-solid fa-trash rule-delete" style="cursor: pointer; padding: 5px; color: var(--smart-theme-color);" title="刪除"></div>
     </div>
