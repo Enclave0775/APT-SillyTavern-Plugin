@@ -109,6 +109,28 @@ async function openEditor(ruleIndex = -1) {
     editorHtml.find('#apt_editor_trigger').val(rule.trigger || '');
     editorHtml.find('#apt_editor_action').val(rule.action || 'enable');
     
+    // Migration logic for inverseOnNoMatch
+    let inverse = rule.inverseOnNoMatch || false;
+    
+    // If undefined, try to migrate from older settings
+    if (typeof rule.inverseOnNoMatch === 'undefined') {
+        if (rule.noMatchAction) {
+             if ((rule.action === 'enable' && rule.noMatchAction === 'disable') ||
+                 (rule.action === 'disable' && rule.noMatchAction === 'enable') ||
+                 (rule.action === 'toggle' && rule.noMatchAction === 'toggle')) {
+                     inverse = true;
+             }
+        } else if (rule.closeOnNoMatch) {
+             // Old checkbox "Close on no match" implies inverse for 'enable' action
+             // But if action was 'disable', close on no match meant 'disable' too (always disable).
+             // However, strictly speaking "Inverse" is cleaner. 
+             // Let's assume user wants 'enable' -> 'disable' behavior mainly.
+             if (rule.action === 'enable') inverse = true;
+        }
+    }
+    
+    editorHtml.find('#apt_editor_inverse_on_no_match').prop('checked', inverse);
+    
     const promptList = editorHtml.find('#apt_editor_prompt_list');
     const prompts = getAvailablePrompts();
     prompts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -157,12 +179,14 @@ async function openEditor(ruleIndex = -1) {
         // Collect checked values
         const newPromptIds = editorHtml.find('#apt_editor_prompt_list input:checked').map((_, el) => $(el).val()).get();
         const newAction = editorHtml.find('#apt_editor_action').val();
+        const newInverse = editorHtml.find('#apt_editor_inverse_on_no_match').prop('checked');
         
         if (newPromptIds && newPromptIds.length > 0) {
             const newRule = { 
                 trigger: newTrigger, 
                 promptIds: newPromptIds, 
                 action: newAction,
+                inverseOnNoMatch: newInverse,
                 enabled: rule.enabled ?? true
             };
             if (ruleIndex >= 0) {
@@ -288,17 +312,19 @@ function processText(text) {
     currentRules.forEach((rule, index) => {
         if (rule.enabled === false) return;
         if (!rule.trigger || (!rule.promptId && (!rule.promptIds || rule.promptIds.length === 0))) return;
-        if (triggeredRules.has(index)) return; 
-
+        
         try {
             const regex = new RegExp(rule.trigger, 'i');
-            if (regex.test(text)) {
+            const isMatch = regex.test(text);
+            const targetIds = rule.promptIds || [rule.promptId];
+
+            if (isMatch) {
+                if (triggeredRules.has(index)) return; // Already triggered
+
                 triggeredRules.add(index);
                 
                 if (!promptManager) return;
 
-                const targetIds = rule.promptIds || [rule.promptId];
-                
                 targetIds.forEach(pId => {
                     const entry = promptManager.getPromptOrderEntry(promptManager.activeCharacter, pId);
                     
@@ -327,6 +353,50 @@ function processText(text) {
                         }
                     }
                 });
+            } else {
+                // No match
+                let noMatchAction = 'none';
+                
+                if (rule.inverseOnNoMatch) {
+                    if (rule.action === 'enable') noMatchAction = 'disable';
+                    else if (rule.action === 'disable') noMatchAction = 'enable';
+                    else if (rule.action === 'toggle') noMatchAction = 'toggle';
+                } else if (rule.noMatchAction) {
+                    noMatchAction = rule.noMatchAction;
+                } else if (rule.closeOnNoMatch) {
+                    noMatchAction = 'disable';
+                }
+                
+                if (noMatchAction !== 'none') {
+                    // Reset trigger state if it was previously triggered
+                    if (triggeredRules.has(index)) {
+                        triggeredRules.delete(index);
+                    }
+
+                    if (!promptManager) return;
+
+                    targetIds.forEach(pId => {
+                        const entry = promptManager.getPromptOrderEntry(promptManager.activeCharacter, pId);
+                        
+                        if (entry) {
+                            let shouldChange = false;
+                            let newState = entry.enabled;
+                            
+                            if (noMatchAction === 'enable' && !entry.enabled) {
+                                newState = true;
+                                shouldChange = true;
+                            } else if (noMatchAction === 'disable' && entry.enabled) {
+                                newState = false;
+                                shouldChange = true;
+                            }
+                            
+                            if (shouldChange) {
+                                entry.enabled = newState;
+                                changed = true;
+                            }
+                        }
+                    });
+                }
             }
         } catch (e) {
             console.error('[AutoPromptToggler] Error processing rule:', e);
