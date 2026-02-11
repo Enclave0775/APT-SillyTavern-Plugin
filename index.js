@@ -435,8 +435,15 @@ function initObserver() {
         }
 
         const textDiv = lastMessageDiv.querySelector('.mes_text');
+        const reasoningDiv = lastMessageDiv.querySelector('.mes_reasoning');
+        let text = '';
+        if (reasoningDiv) {
+            text += (reasoningDiv.textContent || reasoningDiv.innerText) + '\n';
+        }
         if (textDiv) {
-            const text = textDiv.innerText || textDiv.textContent;
+            text += textDiv.textContent || textDiv.innerText;
+        }
+        if (text) {
             debouncedProcessText(text);
         }
     });
