@@ -2,6 +2,16 @@
     <div class="flex-container flexFlowColumn gap-10">
         <div class="flex-container align-items-center">
             <div class="flex1">
+                <label data-i18n="Detection Source">偵測來源 (Detection Source)</label>
+                <select class="text_pole" id="apt_editor_source">
+                    <option value="display">聊天顯示 (Chat Display)</option>
+                    <option value="raw">原始內容 (Raw Content)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex-container align-items-center">
+            <div class="flex1">
                 <label data-i18n="Trigger (Regex)">觸發條件 (正則表達式)</label>
                 <input type="text" class="text_pole" id="apt_editor_trigger" placeholder="例如: Detected anomaly" />
             </div>

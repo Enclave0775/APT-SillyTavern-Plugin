@@ -106,6 +106,7 @@ async function openEditor(ruleIndex = -1) {
     const editorHtml = $(editorTemplate);
     
     // Populate editor fields
+    editorHtml.find('#apt_editor_source').val(rule.source || 'display');
     editorHtml.find('#apt_editor_trigger').val(rule.trigger || '');
     editorHtml.find('#apt_editor_action').val(rule.action || 'enable');
     
@@ -175,6 +176,7 @@ async function openEditor(ruleIndex = -1) {
     });
     
     if (popupResult) {
+        const newSource = editorHtml.find('#apt_editor_source').val();
         const newTrigger = editorHtml.find('#apt_editor_trigger').val();
         // Collect checked values
         const newPromptIds = editorHtml.find('#apt_editor_prompt_list input:checked').map((_, el) => $(el).val()).get();
@@ -183,6 +185,7 @@ async function openEditor(ruleIndex = -1) {
         
         if (newPromptIds && newPromptIds.length > 0) {
             const newRule = { 
+                source: newSource,
                 trigger: newTrigger, 
                 promptIds: newPromptIds, 
                 action: newAction,
@@ -258,11 +261,12 @@ function renderRulesList() {
             promptDisplay = promptNames.join(', ');
         }
 
-        const summaryText = `${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay} (${actionText})`;
+        const sourceText = rule.source === 'raw' ? '[原始] ' : '';
+        const summaryText = `${sourceText}${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay} (${actionText})`;
         item.find('.apt-rule-summary').text(summaryText);
         
         // Full text in title for hover
-        const titleText = `${rule.trigger || '(無觸發條件)'} ➜ ${promptNames.join(', ')} (${actionText})`;
+        const titleText = `[${rule.source || 'display'}] ${rule.trigger || '(無觸發條件)'} ➜ ${promptNames.join(', ')} (${actionText})`;
         item.find('.apt-rule-summary').attr('title', titleText);
         
         // Buttons
@@ -298,14 +302,14 @@ function renderRulesList() {
     });
 }
 
-function debouncedProcessText(text) {
+function debouncedProcessText(displayText, rawText) {
     if (processTimeout) clearTimeout(processTimeout);
     processTimeout = setTimeout(() => {
-        processText(text);
+        processText(displayText, rawText);
     }, 200);
 }
 
-function processText(text) {
+function processText(displayText, rawText) {
     const currentRules = getRules();
     let changed = false;
 
@@ -314,8 +318,9 @@ function processText(text) {
         if (!rule.trigger || (!rule.promptId && (!rule.promptIds || rule.promptIds.length === 0))) return;
         
         try {
+            const textToUse = (rule.source === 'raw') ? (rawText || '') : displayText;
             const regex = new RegExp(rule.trigger, 'i');
-            const isMatch = regex.test(text);
+            const isMatch = regex.test(textToUse);
             const targetIds = rule.promptIds || [rule.promptId];
 
             if (isMatch) {
@@ -436,15 +441,27 @@ function initObserver() {
 
         const textDiv = lastMessageDiv.querySelector('.mes_text');
         const reasoningDiv = lastMessageDiv.querySelector('.mes_reasoning');
-        let text = '';
+        let displayText = '';
         if (reasoningDiv) {
-            text += (reasoningDiv.textContent || reasoningDiv.innerText) + '\n';
+            displayText += (reasoningDiv.textContent || reasoningDiv.innerText) + '\n';
         }
         if (textDiv) {
-            text += textDiv.textContent || textDiv.innerText;
+            displayText += textDiv.textContent || textDiv.innerText;
         }
-        if (text) {
-            debouncedProcessText(text);
+        
+        let rawText = '';
+        if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
+            const lastMsg = chat[chat.length - 1];
+            if (lastMsg && !lastMsg.is_user) {
+                rawText = lastMsg.mes || '';
+                if (lastMsg.mes_reasoning) {
+                    rawText = lastMsg.mes_reasoning + '\n' + rawText;
+                }
+            }
+        }
+        
+        if (displayText || rawText) {
+            debouncedProcessText(displayText, rawText);
         }
     });
 
