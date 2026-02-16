@@ -7,6 +7,7 @@ import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 const SETTINGS_KEY = 'auto_prompt_toggler';
 const SETTINGS_KEY_PROFILES = 'auto_prompt_toggler_profiles';
 const SETTINGS_KEY_PROFILE = 'auto_prompt_toggler_current_profile';
+const SETTINGS_KEY_NOTIFICATIONS = 'auto_prompt_toggler_notifications';
 
 let chatObserver = null;
 let lastMessageId = null;
@@ -23,6 +24,16 @@ function getProfiles() {
 
 function getCurrentProfileName() {
     return extension_settings[SETTINGS_KEY_PROFILE] || 'Default';
+}
+
+function getNotificationsEnabled() {
+    const val = extension_settings[SETTINGS_KEY_NOTIFICATIONS];
+    return (typeof val === 'undefined') ? true : val;
+}
+
+function setNotificationsEnabled(enabled) {
+    extension_settings[SETTINGS_KEY_NOTIFICATIONS] = enabled;
+    saveSettingsDebounced();
 }
 
 function setCurrentProfileName(name) {
@@ -107,6 +118,7 @@ async function openEditor(ruleIndex = -1) {
     
     // Populate editor fields
     editorHtml.find('#apt_editor_source').val(rule.source || 'display');
+    editorHtml.find('#apt_editor_target').val(rule.target || 'ai_output');
     editorHtml.find('#apt_editor_trigger').val(rule.trigger || '');
     editorHtml.find('#apt_editor_action').val(rule.action || 'enable');
     
@@ -177,6 +189,7 @@ async function openEditor(ruleIndex = -1) {
     
     if (popupResult) {
         const newSource = editorHtml.find('#apt_editor_source').val();
+        const newTarget = editorHtml.find('#apt_editor_target').val();
         const newTrigger = editorHtml.find('#apt_editor_trigger').val();
         // Collect checked values
         const newPromptIds = editorHtml.find('#apt_editor_prompt_list input:checked').map((_, el) => $(el).val()).get();
@@ -186,6 +199,7 @@ async function openEditor(ruleIndex = -1) {
         if (newPromptIds && newPromptIds.length > 0) {
             const newRule = { 
                 source: newSource,
+                target: newTarget,
                 trigger: newTrigger, 
                 promptIds: newPromptIds, 
                 action: newAction,
@@ -262,11 +276,15 @@ function renderRulesList() {
         }
 
         const sourceText = rule.source === 'raw' ? '[原始] ' : '';
-        const summaryText = `${sourceText}${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay} (${actionText})`;
+        let targetText = '';
+        if (rule.target === 'user_input') targetText = '[User] ';
+        else if (rule.target === 'both') targetText = '[兩者] ';
+        
+        const summaryText = `${targetText}${sourceText}${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay} (${actionText})`;
         item.find('.apt-rule-summary').text(summaryText);
         
         // Full text in title for hover
-        const titleText = `[${rule.source || 'display'}] ${rule.trigger || '(無觸發條件)'} ➜ ${promptNames.join(', ')} (${actionText})`;
+        const titleText = `[${rule.target || 'ai_output'}][${rule.source || 'display'}] ${rule.trigger || '(無觸發條件)'} ➜ ${promptNames.join(', ')} (${actionText})`;
         item.find('.apt-rule-summary').attr('title', titleText);
         
         // Buttons
@@ -302,20 +320,29 @@ function renderRulesList() {
     });
 }
 
-function debouncedProcessText(displayText, rawText) {
+function debouncedProcessText(displayText, rawText, msgType) {
     if (processTimeout) clearTimeout(processTimeout);
     processTimeout = setTimeout(() => {
-        processText(displayText, rawText);
+        processText(displayText, rawText, msgType);
     }, 200);
 }
 
-function processText(displayText, rawText) {
+function processText(displayText, rawText, msgType) {
     const currentRules = getRules();
     let changed = false;
 
     currentRules.forEach((rule, index) => {
         if (rule.enabled === false) return;
         if (!rule.trigger || (!rule.promptId && (!rule.promptIds || rule.promptIds.length === 0))) return;
+
+        // Check target (AI vs User vs System)
+        const target = rule.target || 'ai_output';
+        
+        // Strict matching based on target setting
+        if (target === 'ai_output' && msgType !== 'ai') return;
+        if (target === 'user_input' && msgType !== 'user') return;
+        // 'both' targets AI and User, but usually excludes System unless we want to support it later
+        if (target === 'both' && (msgType !== 'ai' && msgType !== 'user')) return;
         
         try {
             const textToUse = (rule.source === 'raw') ? (rawText || '') : displayText;
@@ -353,8 +380,10 @@ function processText(displayText, rawText) {
                         if (shouldChange) {
                             entry.enabled = newState;
                             changed = true;
-                            const status = newState ? '開啟' : '關閉';
-                            toastr.info(`${status}提示詞: ${prompt.name}`, 'Auto Prompt Toggler');
+                            if (getNotificationsEnabled()) {
+                                const status = newState ? '開啟' : '關閉';
+                                toastr.info(`${status}提示詞: ${prompt.name}`, 'Auto Prompt Toggler');
+                            }
                         }
                     }
                 });
@@ -429,7 +458,32 @@ function initObserver() {
         
         const lastMessageDiv = messages[messages.length - 1];
         
-        if (lastMessageDiv.classList.contains('is_user')) return;
+        // Determine message type and raw text from chat object (Source of Truth)
+        let isUser = false;
+        let isSystem = false;
+        let rawText = '';
+        
+        if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
+            // We assume the last message in DOM corresponds to the last message in chat array.
+            // This is generally true for SillyTavern.
+            const lastMsg = chat[chat.length - 1];
+            if (lastMsg) {
+                isUser = lastMsg.is_user;
+                isSystem = lastMsg.is_system;
+                rawText = lastMsg.mes || '';
+                if (lastMsg.mes_reasoning) {
+                    rawText = lastMsg.mes_reasoning + '\n' + rawText;
+                }
+            }
+        } else {
+            // Fallback to DOM if chat array is not available (unlikely)
+            isUser = lastMessageDiv.classList.contains('is_user');
+            isSystem = lastMessageDiv.getAttribute('is_system') === 'true';
+        }
+
+        let msgType = 'ai';
+        if (isUser) msgType = 'user';
+        else if (isSystem) msgType = 'system';
 
         const msgIndex = messages.length - 1;
         const currentMsgId = `msg-${msgIndex}`;
@@ -449,19 +503,8 @@ function initObserver() {
             displayText += textDiv.textContent || textDiv.innerText;
         }
         
-        let rawText = '';
-        if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
-            const lastMsg = chat[chat.length - 1];
-            if (lastMsg && !lastMsg.is_user) {
-                rawText = lastMsg.mes || '';
-                if (lastMsg.mes_reasoning) {
-                    rawText = lastMsg.mes_reasoning + '\n' + rawText;
-                }
-            }
-        }
-        
         if (displayText || rawText) {
-            debouncedProcessText(displayText, rawText);
+            debouncedProcessText(displayText, rawText, msgType);
         }
     });
 
@@ -481,6 +524,11 @@ jQuery(async () => {
 
     const settingsHtml = await renderExtensionTemplateAsync('third-party/APT-SillyTavern-Plugin', 'settings');
     $('#extensions_settings').append(settingsHtml);
+
+    // Notifications Init
+    $('#apt_enable_notifications').prop('checked', getNotificationsEnabled()).on('change', function() {
+        setNotificationsEnabled($(this).prop('checked'));
+    });
 
     // Profile Management Init
     if (!extension_settings[SETTINGS_KEY_PROFILES]) {

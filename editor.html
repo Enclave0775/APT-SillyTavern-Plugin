@@ -12,6 +12,17 @@
 
         <div class="flex-container align-items-center">
             <div class="flex1">
+                <label data-i18n="Detection Target">偵測對象 (Detection Target)</label>
+                <select class="text_pole" id="apt_editor_target">
+                    <option value="ai_output">AI 輸出 (AI Output)</option>
+                    <option value="user_input">使用者輸入 (User Input)</option>
+                    <option value="both">兩者 (Both)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex-container align-items-center">
+            <div class="flex1">
                 <label data-i18n="Trigger (Regex)">觸發條件 (正則表達式)</label>
                 <input type="text" class="text_pole" id="apt_editor_trigger" placeholder="例如: Detected anomaly" />
             </div>
