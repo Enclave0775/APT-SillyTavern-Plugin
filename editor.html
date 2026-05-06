@@ -2,6 +2,13 @@
     <div class="flex-container flexFlowColumn gap-10">
         <div class="flex-container align-items-center">
             <div class="flex1">
+                <label data-i18n="Rule Name">規則名稱 (選填，方便分類識別)</label>
+                <input type="text" class="text_pole" id="apt_editor_rule_name" placeholder="例如: 睡覺判定" />
+            </div>
+        </div>
+
+        <div class="flex-container align-items-center">
+            <div class="flex1">
                 <label data-i18n="Detection Source">偵測來源 (Detection Source)</label>
                 <select class="text_pole" id="apt_editor_source">
                     <option value="display">聊天顯示 (Chat Display)</option>
@@ -27,31 +34,47 @@
                 <input type="text" class="text_pole" id="apt_editor_trigger" placeholder="例如: Detected anomaly" />
             </div>
         </div>
+
+        <div class="flex-container align-items-center">
+            <div class="flex1">
+                <label data-i18n="Search Depth" title="設定要往回檢查多少則訊息。1 代表只檢查最新的一則，2 代表檢查最新與前一則，以此類推。0 代表檢查所有歷史訊息。">檢查層數 (Search Depth)</label>
+                <input type="number" class="text_pole" id="apt_editor_depth" value="1" min="0" step="1" title="1=僅最新, 2=最新+上一則, 0=全部" />
+            </div>
+        </div>
         
-        <div class="flex-container align-items-center">
+        <div class="flex-container align-items-center" style="margin-bottom: 15px;">
             <div class="flex1">
-                <label data-i18n="Target Prompts">目標提示詞 (可多選)</label>
-                <div id="apt_editor_prompt_list" class="apt-prompt-list">
-                    <!-- Checkboxes will be inserted here -->
+                <div class="flex-container align-items-center justify-content-space-between" style="margin-bottom: 10px;">
+                    <label data-i18n="Target Prompts" style="margin: 0; font-size: 1.1em; font-weight: bold;">目標提示詞 (拖曳移動/排序)</label>
                 </div>
-            </div>
-        </div>
+                
+                <div style="margin-bottom: 10px;">
+                    <input type="text" class="text_pole" id="apt_editor_prompt_search" placeholder="🔍 輸入關鍵字以過濾三個清單中的提示詞..." style="width: 100%; border-radius: 5px; padding: 8px 10px;" />
+                </div>
 
-        <div class="flex-container align-items-center">
-            <div class="flex1">
-                <label data-i18n="Action">動作</label>
-                <select class="text_pole" id="apt_editor_action">
-                    <option value="enable">開啟 (Enable)</option>
-                    <option value="disable">關閉 (Disable)</option>
-                    <option value="toggle">切換 (Toggle)</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="flex-container align-items-center">
-            <div class="flex1 flex-container align-items-center checkbox_label">
-                <input type="checkbox" id="apt_editor_inverse_on_no_match" style="margin-right: 10px;">
-                <label for="apt_editor_inverse_on_no_match" data-i18n="Inverse Action on No Match" title="開啟->關閉, 關閉->開啟">若正則沒對應到則執行反向動作</label>
+                <div class="apt-dual-list-container">
+                    <div class="apt-list-box">
+                        <div class="apt-list-header">未選擇的提示詞</div>
+                        <ul id="apt_editor_prompt_unselected" class="apt-sortable-list">
+                        </ul>
+                    </div>
+                    <div class="apt-list-box">
+                        <div class="apt-list-header" style="color: var(--SmartThemeConfirmationColor);" title="偵測到關鍵字時開啟，未偵測到時自動關閉">觸發時啟用 / 結束時關閉</div>
+                        <ul id="apt_editor_prompt_match" class="apt-sortable-list">
+                        </ul>
+                    </div>
+                    <div class="apt-list-box">
+                        <div class="apt-list-header" style="color: var(--SmartThemeDeflectionColor);" title="偵測到關鍵字時關閉，未偵測到時自動開啟">觸發時停用 / 結束時還原</div>
+                        <ul id="apt_editor_prompt_nomatch" class="apt-sortable-list">
+                        </ul>
+                    </div>
+                </div>
+                <small style="color: gray;">
+                    💡 <b>運作說明：</b> (未觸發條件時，系統會自動將提示詞切換回原本的預設狀態)<br>
+                    • <b>觸發時啟用 (中間)：</b> 放「觸發才加載的特殊設定」。例如：遇到戰鬥場景才開啟的戰鬥提示詞。<br>
+                    • <b>觸發時停用 (右邊)：</b> 放「觸發就卸載的常駐設定」。例如：平時常駐，但遇到戰鬥場景必須暫時關閉的日常提示詞。<br>
+                    (通常只需使用中間框即可，右邊框用來處理必須互斥/靜音的常駐提示詞)
+                </small>
             </div>
         </div>
     </div>

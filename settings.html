@@ -9,24 +9,44 @@
                 <input type="checkbox" id="apt_enable_notifications" style="margin-right: 8px;">
                 <label for="apt_enable_notifications" title="切換提示詞時顯示通知">顯示通知 (Show Notifications)</label>
             </div>
-            <div class="apt-profile-manager" style="display: flex; align-items: center; margin-bottom: 10px; gap: 5px;">
-                <select id="apt_profile_select" class="text_pole" style="flex-grow: 1;" title="選擇設定檔"></select>
-                <div id="apt_profile_new" class="menu_button fa-solid fa-plus" title="新增設定檔" style="padding: 8px;"></div>
-                <div id="apt_profile_import" class="menu_button fa-solid fa-file-import" title="匯入設定檔 (作為新設定檔)" style="padding: 8px;"></div>
-                <div id="apt_profile_rename" class="menu_button fa-solid fa-pen-to-square" title="重新命名" style="padding: 8px;"></div>
-                <div id="apt_profile_export" class="menu_button fa-solid fa-file-export" title="匯出設定檔" style="padding: 8px;"></div>
-                <div id="apt_profile_delete" class="menu_button fa-solid fa-trash" title="刪除設定檔" style="padding: 8px; color: var(--smart-theme-color);"></div>
+            
+            <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 5px;">
+                <strong>全域規則 (Global Rules)</strong>
+                <div style="display: flex; gap: 4px; align-items: center; background-color: var(--background-color-secondary); padding: 4px; border-radius: 5px; border: 1px solid var(--border-color); flex-wrap: wrap;">
+                    <i class="fa-solid fa-folder" style="color: var(--smart-theme-color); font-size: 0.9em; margin-left: 2px;" title="設定檔"></i>
+                    <select id="apt_global_profile_select" class="text_pole" style="min-width: 100px; max-width: 140px; padding: 2px 5px; font-size: 0.85em; height: 24px; border-radius: 3px; border: 1px solid var(--border-color);">
+                        <!-- Profile options will be rendered here -->
+                    </select>
+                    <div style="display: flex; gap: 2px; border-left: 1px solid var(--border-color); padding-left: 4px; margin-left: 2px;">
+                        <div id="apt_global_profile_add" class="menu_button fa-solid fa-plus" title="建立新設定檔" style="padding: 4px; font-size: 0.9em;"></div>
+                        <div id="apt_global_profile_rename" class="menu_button fa-solid fa-pen" title="重新命名設定檔" style="padding: 4px; font-size: 0.9em;"></div>
+                        <div id="apt_global_profile_delete" class="menu_button fa-solid fa-trash" title="刪除設定檔" style="padding: 4px; font-size: 0.9em; color: var(--smart-theme-color);"></div>
+                        <div id="apt_global_add_rule" class="menu_button fa-solid fa-file-circle-plus" title="新增規則至此設定檔" style="padding: 4px; font-size: 0.9em;"></div>
+                        <div id="apt_global_import" class="menu_button fa-solid fa-file-import" title="匯入規則至此設定檔" style="padding: 4px; font-size: 0.9em;"></div>
+                        <div id="apt_global_export" class="menu_button fa-solid fa-file-export" title="將此設定檔匯出" style="padding: 4px; font-size: 0.9em;"></div>
+                        <div id="apt_global_clear" class="menu_button fa-solid fa-broom" title="清空此設定檔的規則" style="padding: 4px; font-size: 0.9em; color: var(--smart-theme-color);"></div>
+                    </div>
+                </div>
             </div>
-            <div id="auto_prompt_toggler_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
-                <div style="font-style: italic; color: gray; text-align: center;">暫無規則</div>
+            
+            <div id="apt_global_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 15px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
+                <div style="font-style: italic; color: gray; text-align: center;">暫無全域規則</div>
             </div>
-            <div style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
-                <input type="file" id="apt_profile_import_file" accept=".json" style="display: none;" />
-                <input type="file" id="auto_prompt_toggler_import_file" accept=".json" style="display: none;" />
-                <button id="auto_prompt_toggler_add_rule" class="menu_button apt-menu_button">新建規則</button>
-                <button id="auto_prompt_toggler_import" class="menu_button apt-menu_button">匯入規則...</button>
-                <button id="auto_prompt_toggler_clear" class="menu_button apt-menu_button">清空列表</button>
+
+            <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <strong>Preset 規則 (綁定當前提示詞預設)</strong>
+                <div style="display: flex; gap: 5px;">
+                    <div id="apt_preset_add_rule" class="menu_button fa-solid fa-plus" title="新增 Preset 規則" style="padding: 5px;"></div>
+                    <div id="apt_preset_import" class="menu_button fa-solid fa-file-import" title="匯入 Preset 規則" style="padding: 5px;"></div>
+                    <div id="apt_preset_export" class="menu_button fa-solid fa-file-export" title="匯出 Preset 規則" style="padding: 5px;"></div>
+                    <div id="apt_preset_clear" class="menu_button fa-solid fa-trash" title="清空 Preset 規則" style="padding: 5px; color: var(--smart-theme-color);"></div>
+                </div>
             </div>
+            <div id="apt_preset_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
+                <div style="font-style: italic; color: gray; text-align: center;">暫無 Preset 規則</div>
+            </div>
+
+            <input type="file" id="apt_import_file_input" accept=".json" style="display: none;" />
             <div>
             <p>對於插件有問題可聯絡提問</p>
             <p>原作者 (Original Author):</p>
@@ -48,6 +68,7 @@
         <div class="menu_button fa-solid fa-pen-to-square rule-edit" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="編輯"></div>
         <div class="menu_button fa-solid fa-copy rule-duplicate" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="複製"></div>
         <div class="menu_button fa-solid fa-download rule-export" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="匯出"></div>
+        <div class="menu_button rule-move" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="移動規則"></div>
         <div class="menu_button fa-solid fa-trash rule-delete" style="cursor: pointer; padding: 5px; color: var(--smart-theme-color);" title="刪除"></div>
     </div>
 </template>

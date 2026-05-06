@@ -35,3 +35,65 @@
 .apt-prompt-item input[type="checkbox"] {
     margin-right: 8px;
 }
+
+.apt-dual-list-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 5px;
+    width: 100%;
+}
+
+.apt-list-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Prevent flex blowout */
+}
+
+.apt-list-header {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.apt-sortable-list {
+    list-style-type: none;
+    padding: 5px;
+    margin: 0;
+    border: 2px solid var(--SmartThemeBorderColor);
+    background-color: var(--SmartThemeBlurTintColor);
+    min-height: 200px;
+    height: 300px; /* Default height */
+    overflow-y: auto;
+    resize: vertical; /* Allow vertical resizing */
+}
+
+.apt-sortable-item {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background-color: var(--SmartThemeQuoteColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    cursor: grab;
+    user-select: none;
+    word-break: break-all;
+    display: flex;
+    align-items: center;
+}
+
+.apt-sortable-item:active {
+    cursor: grabbing;
+}
+
+.apt-sortable-item:hover {
+    background-color: var(--SmartThemeHoverColor);
+}
+
+.apt-sortable-ghost {
+    opacity: 0.4;
+    background-color: var(--SmartThemeBodyColor);
+}
+
+.apt-search-hidden {
+    display: none !important;
+}
