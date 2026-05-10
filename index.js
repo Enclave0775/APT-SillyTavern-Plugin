@@ -52,12 +52,46 @@ function getGlobalRules() {
     return profiles[current] || [];
 }
 
+function forceRecheck() {
+    lastMessageId = null;
+    triggeredRules.clear();
+    
+    // Get recent messages from DOM to re-trigger the check
+    const chatContainer = document.querySelector('#chat');
+    if (!chatContainer) return;
+    const messages = chatContainer.querySelectorAll('.mes');
+    if (messages.length === 0) return;
+    
+    const recentMessages = [];
+    const allRules = [
+        ...getGlobalRules(),
+        ...currentPresetRules
+    ];
+    
+    let maxDepth = 1;
+    let checkAll = false;
+    for (const rule of allRules) {
+        if (rule.depth === 0) checkAll = true;
+        if (rule.depth > maxDepth) maxDepth = rule.depth;
+    }
+    
+    const countToProcess = checkAll ? messages.length : Math.min(messages.length, maxDepth);
+    for (let i = messages.length - countToProcess; i < messages.length; i++) {
+        const msgDiv = messages[i];
+        const chatMsg = (typeof chat !== 'undefined' && Array.isArray(chat) && i < chat.length) ? chat[i] : null;
+        recentMessages.push(extractMessageData(msgDiv, chatMsg));
+    }
+    
+    debouncedProcessText(recentMessages);
+}
+
 function saveGlobalRules(rules) {
     const profiles = getGlobalProfiles();
     const current = getCurrentGlobalProfileName();
     profiles[current] = rules;
     extension_settings[SETTINGS_KEY_GLOBAL] = profiles;
     saveSettingsDebounced();
+    forceRecheck();
 }
 
 async function savePresetRules() {
@@ -67,17 +101,18 @@ async function savePresetRules() {
     currentPresetName = presetMgr.getSelectedPresetName();
     if (!currentPresetName) return;
 
-    try {
-        await presetMgr.writePresetExtensionField({
-            name: currentPresetName,
-            path: 'auto_prompt_toggler',
-            value: { rules: currentPresetRules },
-        });
-        console.log('[APT] Preset rules saved to file successfully.');
-    } catch (e) {
-        console.error('[APT] Error saving preset rules to file:', e);
+        try {
+            await presetMgr.writePresetExtensionField({
+                name: currentPresetName,
+                path: 'auto_prompt_toggler',
+                value: { rules: currentPresetRules },
+            });
+            console.log('[APT] Preset rules saved to file successfully.');
+            forceRecheck();
+        } catch (e) {
+            console.error('[APT] Error saving preset rules to file:', e);
+        }
     }
-}
 
 function getNotificationsEnabled() {
     const val = extension_settings[SETTINGS_KEY_NOTIFICATIONS];
@@ -562,15 +597,6 @@ function processText(recentMessages) {
             // Core Logic for new structure:
             // If match: turn ON matchIds, turn OFF noMatchIds
             // If NOT match: turn OFF matchIds, turn ON noMatchIds
-            
-            // Handle tracking to avoid redundant spam
-            if (isMatch) {
-                if (triggeredRules.has(ruleId)) return; // Already in MATCH state
-                triggeredRules.add(ruleId);
-            } else {
-                if (!triggeredRules.has(ruleId)) return; // Already in NO_MATCH state
-                triggeredRules.delete(ruleId);
-            }
 
             // Execute State Changes
             const applyChanges = (ids, targetState) => {
@@ -731,6 +757,7 @@ function updatePresetState() {
     if (!aptExt) {
         currentPresetRules = [];
         renderRulesLists();
+        forceRecheck();
         return;
     }
 
@@ -769,6 +796,7 @@ function updatePresetState() {
     
     currentPresetRules = aptExt.rules || [];
     renderRulesLists();
+    forceRecheck();
 }
 
 // 供事件綁定的共用邏輯 (匯入/匯出)
