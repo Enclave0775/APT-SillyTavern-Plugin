@@ -5,9 +5,18 @@
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
+            <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <label for="apt_language_select" data-apt-i18n="language_label">介面語言</label>
+                <select id="apt_language_select" class="text_pole" style="width: auto; min-width: 130px;">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+
             <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center;">
                 <input type="checkbox" id="apt_enable_notifications" style="margin-right: 8px;">
-                <label for="apt_enable_notifications" title="切換提示詞時顯示通知">顯示通知 (Show Notifications)</label>
+                <label for="apt_enable_notifications" title="切換提示詞時顯示通知" data-apt-i18n="show_notifications" data-apt-i18n-title="show_notifications_title">顯示通知 (Show Notifications)</label>
             </div>
             
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 5px;">
@@ -48,8 +57,8 @@
 
             <input type="file" id="apt_import_file_input" accept=".json" style="display: none;" />
             <div>
-            <p>對於插件有問題可聯絡提問</p>
-            <p>原作者 (Original Author):</p>
+            <p data-apt-i18n="contact_text">對於插件有問題可聯絡提問</p>
+            <p data-apt-i18n="original_author">原作者 (Original Author):</p>
             <ul>
                 <li>Discord: enclave_x0775</li>
                 <li>Telegram: @Enclave_X</li>
