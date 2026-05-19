@@ -1,24 +1,22 @@
 <div class="auto-prompt-toggler-editor">
-    <div class="flex-container flexFlowColumn gap-10">
-        <div class="flex-container align-items-center">
-            <div class="flex1">
+    <div class="flex-container flexFlowColumn gap-10 apt-editor-form">
+        <div class="apt-editor-section apt-editor-basic-section">
+            <div class="apt-editor-field apt-editor-field-full">
                 <label data-i18n="Rule Name">規則名稱 (選填，方便分類識別)</label>
                 <input type="text" class="text_pole" id="apt_editor_rule_name" placeholder="例如: 睡覺判定" />
             </div>
         </div>
 
-        <div class="flex-container align-items-center">
-            <div class="flex1">
+        <div class="apt-editor-section apt-editor-grid">
+            <div class="apt-editor-field">
                 <label data-i18n="Detection Source">偵測來源 (Detection Source)</label>
                 <select class="text_pole" id="apt_editor_source">
                     <option value="display">聊天顯示 (Chat Display)</option>
                     <option value="raw">原始內容 (Raw Content)</option>
                 </select>
             </div>
-        </div>
 
-        <div class="flex-container align-items-center">
-            <div class="flex1">
+            <div class="apt-editor-field">
                 <label data-i18n="Detection Target">偵測對象 (Detection Target)</label>
                 <select class="text_pole" id="apt_editor_target">
                     <option value="ai_output">AI 輸出 (AI Output)</option>
@@ -26,24 +24,37 @@
                     <option value="both">兩者 (Both)</option>
                 </select>
             </div>
-        </div>
 
-        <div class="flex-container align-items-center">
-            <div class="flex1">
-                <label data-i18n="Trigger (Regex)">觸發條件 (正則表達式)</label>
-                <input type="text" class="text_pole" id="apt_editor_trigger" placeholder="例如: Detected anomaly" />
+            <div class="apt-editor-field apt-editor-field-wide">
+                <label data-i18n="Trigger Match Mode">觸發模式 (Trigger Mode)</label>
+                <select class="text_pole" id="apt_editor_trigger_mode">
+                    <option value="any">任一條件符合 (OR / Any)</option>
+                    <option value="all">所有條件皆符合 (AND / All)</option>
+                </select>
             </div>
         </div>
 
-        <div class="flex-container align-items-center">
-            <div class="flex1">
+        <div class="apt-editor-section apt-editor-conditions">
+            <div class="apt-editor-field">
+                <label data-i18n="Trigger (Regex)">包含條件 (Regex，每行一個)</label>
+                <textarea class="text_pole" id="apt_editor_trigger" rows="4" placeholder="例如:\n出鞘\n劍"></textarea>
+            </div>
+
+            <div class="apt-editor-field">
+                <label data-i18n="Exclude Trigger (Regex)">排除條件 (Regex，每行一個，選填)</label>
+                <textarea class="text_pole" id="apt_editor_exclude_trigger" rows="4" placeholder="例如:\n木劍\n練習劍"></textarea>
+            </div>
+        </div>
+
+        <div class="apt-editor-section">
+            <div class="apt-editor-field apt-editor-field-full">
                 <label data-i18n="Search Depth" title="設定要往回檢查多少則訊息。1 代表只檢查最新的一則，2 代表檢查最新與前一則，以此類推。0 代表檢查所有歷史訊息。">檢查層數 (Search Depth)</label>
                 <input type="number" class="text_pole" id="apt_editor_depth" value="1" min="0" step="1" title="1=僅最新, 2=最新+上一則, 0=全部" />
             </div>
         </div>
         
-        <div class="flex-container align-items-center" style="margin-bottom: 15px;">
-            <div class="flex1">
+        <div class="apt-editor-section apt-editor-prompts" style="margin-bottom: 15px;">
+            <div class="apt-editor-field apt-editor-field-full">
                 <div class="flex-container align-items-center justify-content-space-between" style="margin-bottom: 10px;">
                     <label data-i18n="Target Prompts" style="margin: 0; font-size: 1.1em; font-weight: bold;">目標提示詞 (拖曳移動/排序)</label>
                 </div>
@@ -71,6 +82,8 @@
                 </div>
                 <small style="color: gray;">
                     💡 <b>運作說明：</b> 此插件會依照規則條件強制切換提示詞狀態；未觸發時會套用相反狀態，而不是記住每個提示詞先前的手動狀態。<br>
+                    • <b>包含條件：</b> 每行一個 Regex。選「所有條件皆符合」即可要求 2 個、3 個以上條件同時出現。<br>
+                    • <b>排除條件：</b> 只要任一排除 Regex 出現，即使包含條件符合也不觸發。<br>
                     • <b>觸發時啟用 (中間)：</b> 放「觸發才加載的特殊設定」。符合條件時開啟，未符合時關閉。<br>
                     • <b>觸發時停用 (右邊)：</b> 放「觸發就卸載的常駐設定」。符合條件時關閉，未符合時開啟。<br>
                     (通常只需使用中間框即可，右邊框用來處理必須互斥/靜音的常駐提示詞)

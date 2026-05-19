@@ -18,7 +18,7 @@ const APT_LANGUAGES = {
         add_preset_rule: '新增 Preset 規則', import_preset_rule: '匯入 Preset 規則', export_preset_rule: '匯出 Preset 規則', clear_preset_rule: '清空 Preset 規則',
         no_global_rules: '暫無全域規則', no_preset_rules: '暫無 Preset 規則', contact_text: '對於插件有問題可聯絡提問', original_author: '原作者 (Original Author):',
         enabled_title: '啟用/停用', edit: '編輯', duplicate: '複製', export: '匯出', move_rule: '移動規則', delete: '刪除',
-        rule_name: '規則名稱 (選填，方便分類識別)', rule_name_ph: '例如: 睡覺判定', source: '偵測來源 (Detection Source)', display: '聊天顯示 (Chat Display)', raw: '原始內容 (Raw Content)', target: '偵測對象 (Detection Target)', ai: 'AI 輸出 (AI Output)', user: '使用者輸入 (User Input)', both: '兩者 (Both)', trigger: '觸發條件 (正則表達式)', trigger_ph: '例如: Detected anomaly', depth: '檢查層數 (Search Depth)', depth_title: '設定要往回檢查多少則訊息。1 代表只檢查最新的一則，2 代表檢查最新與前一則，以此類推。0 代表檢查所有歷史訊息。', target_prompts: '目標提示詞 (拖曳移動/排序)', search_ph: '🔍 輸入關鍵字以過濾三個清單中的提示詞...', unselected: '未選擇的提示詞', match_header: '觸發時啟用 / 結束時關閉', nomatch_header: '觸發時停用 / 結束時還原', editor_help: '💡 <b>運作說明：</b> 此插件會依照規則條件強制切換提示詞狀態；未觸發時會套用相反狀態，而不是記住每個提示詞先前的手動狀態。<br>• <b>觸發時啟用 (中間)：</b> 放「觸發才加載的特殊設定」。符合條件時開啟，未符合時關閉。<br>• <b>觸發時停用 (右邊)：</b> 放「觸發就卸載的常駐設定」。符合條件時關閉，未符合時開啟。<br>(通常只需使用中間框即可，右邊框用來處理必須互斥/靜音的常駐提示詞)',
+        rule_name: '規則名稱 (選填，方便分類識別)', rule_name_ph: '例如: 睡覺判定', source: '偵測來源 (Detection Source)', display: '聊天顯示 (Chat Display)', raw: '原始內容 (Raw Content)', target: '偵測對象 (Detection Target)', ai: 'AI 輸出 (AI Output)', user: '使用者輸入 (User Input)', both: '兩者 (Both)', trigger_mode: '觸發模式 (Trigger Mode)', trigger_mode_any: '任一條件符合 (OR / Any)', trigger_mode_all: '所有條件皆符合 (AND / All)', trigger: '包含條件 (Regex，每行一個)', trigger_ph: '例如:\n出鞘\n劍', exclude_trigger: '排除條件 (Regex，每行一個，選填)', exclude_trigger_ph: '例如:\n木劍\n練習劍', depth: '檢查層數 (Search Depth)', depth_title: '設定要往回檢查多少則訊息。1 代表只檢查最新的一則，2 代表檢查最新與前一則，以此類推。0 代表檢查所有歷史訊息。', target_prompts: '目標提示詞 (拖曳移動/排序)', search_ph: '🔍 輸入關鍵字以過濾三個清單中的提示詞...', unselected: '未選擇的提示詞', match_header: '觸發時啟用 / 結束時關閉', nomatch_header: '觸發時停用 / 結束時還原', editor_help: '💡 <b>運作說明：</b> 此插件會依照規則條件強制切換提示詞狀態；未觸發時會套用相反狀態，而不是記住每個提示詞先前的手動狀態。<br>• <b>包含條件：</b> 每行一個 Regex。選「所有條件皆符合」即可要求 2 個、3 個以上條件同時出現。<br>• <b>排除條件：</b> 只要任一排除 Regex 出現，即使包含條件符合也不觸發。<br>• <b>觸發時啟用 (中間)：</b> 放「觸發才加載的特殊設定」。符合條件時開啟，未符合時關閉。<br>• <b>觸發時停用 (右邊)：</b> 放「觸發就卸載的常駐設定」。符合條件時關閉，未符合時開啟。<br>(通常只需使用中間框即可，右邊框用來處理必須互斥/靜音的常駐提示詞)',
         save: '儲存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留規則', discard_rules: '捨棄規則'
     },
     'zh-CN': {
@@ -28,7 +28,7 @@ const APT_LANGUAGES = {
         add_preset_rule: '新增 Preset 规则', import_preset_rule: '导入 Preset 规则', export_preset_rule: '导出 Preset 规则', clear_preset_rule: '清空 Preset 规则',
         no_global_rules: '暂无全局规则', no_preset_rules: '暂无 Preset 规则', contact_text: '插件如有问题可联系提问', original_author: '原作者 (Original Author):',
         enabled_title: '启用/停用', edit: '编辑', duplicate: '复制', export: '导出', move_rule: '移动规则', delete: '删除',
-        rule_name: '规则名称 (选填，方便分类识别)', rule_name_ph: '例如: 睡觉判定', source: '检测来源 (Detection Source)', display: '聊天显示 (Chat Display)', raw: '原始内容 (Raw Content)', target: '检测对象 (Detection Target)', ai: 'AI 输出 (AI Output)', user: '用户输入 (User Input)', both: '两者 (Both)', trigger: '触发条件 (正则表达式)', trigger_ph: '例如: Detected anomaly', depth: '检查层数 (Search Depth)', depth_title: '设置要往回检查多少条消息。1 代表只检查最新一条，2 代表检查最新与前一条，0 代表检查所有历史消息。', target_prompts: '目标提示词 (拖拽移动/排序)', search_ph: '🔍 输入关键字以过滤三个列表中的提示词...', unselected: '未选择的提示词', match_header: '触发时启用 / 结束时关闭', nomatch_header: '触发时停用 / 结束时还原', editor_help: '💡 <b>运行说明：</b> 此插件会依照规则条件强制切换提示词状态；未触发时会套用相反状态，而不是记住每个提示词先前的手动状态。<br>• <b>触发时启用 (中间)：</b> 放「触发才加载的特殊设置」。符合条件时开启，未符合时关闭。<br>• <b>触发时停用 (右边)：</b> 放「触发就卸载的常驻设置」。符合条件时关闭，未符合时开启。<br>(通常只需使用中间框即可，右边框用来处理必须互斥/静音的常驻提示词)',
+        rule_name: '规则名称 (选填，方便分类识别)', rule_name_ph: '例如: 睡觉判定', source: '检测来源 (Detection Source)', display: '聊天显示 (Chat Display)', raw: '原始内容 (Raw Content)', target: '检测对象 (Detection Target)', ai: 'AI 输出 (AI Output)', user: '用户输入 (User Input)', both: '两者 (Both)', trigger_mode: '触发模式 (Trigger Mode)', trigger_mode_any: '任一条件符合 (OR / Any)', trigger_mode_all: '所有条件皆符合 (AND / All)', trigger: '包含条件 (Regex，每行一个)', trigger_ph: '例如:\n出鞘\n剑', exclude_trigger: '排除条件 (Regex，每行一个，选填)', exclude_trigger_ph: '例如:\n木剑\n练习剑', depth: '检查层数 (Search Depth)', depth_title: '设置要往回检查多少条消息。1 代表只检查最新一条，2 代表检查最新与前一条，0 代表检查所有历史消息。', target_prompts: '目标提示词 (拖拽移动/排序)', search_ph: '🔍 输入关键字以过滤三个列表中的提示词...', unselected: '未选择的提示词', match_header: '触发时启用 / 结束时关闭', nomatch_header: '触发时停用 / 结束时还原', editor_help: '💡 <b>运行说明：</b> 此插件会依照规则条件强制切换提示词状态；未触发时会套用相反状态，而不是记住每个提示词先前的手动状态。<br>• <b>包含条件：</b> 每行一个 Regex。选择「所有条件皆符合」即可要求 2 个、3 个以上条件同时出现。<br>• <b>排除条件：</b> 只要任一排除 Regex 出现，即使包含条件符合也不触发。<br>• <b>触发时启用 (中间)：</b> 放「触发才加载的特殊设置」。符合条件时开启，未符合时关闭。<br>• <b>触发时停用 (右边)：</b> 放「触发就卸载的常驻设置」。符合条件时关闭，未符合时开启。<br>(通常只需使用中间框即可，右边框用来处理必须互斥/静音的常驻提示词)',
         save: '保存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留规则', discard_rules: '舍弃规则'
     },
     en: {
@@ -38,7 +38,7 @@ const APT_LANGUAGES = {
         add_preset_rule: 'Add Preset rule', import_preset_rule: 'Import Preset rules', export_preset_rule: 'Export Preset rules', clear_preset_rule: 'Clear Preset rules',
         no_global_rules: 'No global rules', no_preset_rules: 'No Preset rules', contact_text: 'If you have questions or issues, feel free to contact:', original_author: 'Original Author:',
         enabled_title: 'Enable/Disable', edit: 'Edit', duplicate: 'Duplicate', export: 'Export', move_rule: 'Move rule', delete: 'Delete',
-        rule_name: 'Rule Name (optional)', rule_name_ph: 'e.g. Sleep detection', source: 'Detection Source', display: 'Chat Display', raw: 'Raw Content', target: 'Detection Target', ai: 'AI Output', user: 'User Input', both: 'Both', trigger: 'Trigger (Regex)', trigger_ph: 'e.g. Detected anomaly', depth: 'Search Depth', depth_title: 'How many recent messages to check. 1 checks only the latest message; 2 checks the latest and previous message; 0 checks all history.', target_prompts: 'Target Prompts (drag to move/sort)', search_ph: '🔍 Type keywords to filter prompts in all three lists...', unselected: 'Unselected Prompts', match_header: 'Enable on Match / Disable on End', nomatch_header: 'Disable on Match / Restore on End', editor_help: '💡 <b>How it works:</b> This plugin forcibly toggles prompt states according to rule conditions. When not matched, it applies the opposite state rather than remembering each prompt\'s previous manual state.<br>• <b>Enable on Match (middle):</b> Put special prompts that should load only when triggered here. They are enabled on match and disabled when not matched.<br>• <b>Disable on Match (right):</b> Put always-on prompts that should be muted when triggered here. They are disabled on match and enabled when not matched.<br>(Usually the middle column is enough; the right column is for mutually exclusive or muted always-on prompts.)',
+        rule_name: 'Rule Name (optional)', rule_name_ph: 'e.g. Sleep detection', source: 'Detection Source', display: 'Chat Display', raw: 'Raw Content', target: 'Detection Target', ai: 'AI Output', user: 'User Input', both: 'Both', trigger_mode: 'Trigger Mode', trigger_mode_any: 'Any condition matches (OR / Any)', trigger_mode_all: 'All conditions match (AND / All)', trigger: 'Include Conditions (Regex, one per line)', trigger_ph: 'e.g.\nunsheathe\nsword', exclude_trigger: 'Exclude Conditions (Regex, one per line, optional)', exclude_trigger_ph: 'e.g.\nwooden sword\npractice sword', depth: 'Search Depth', depth_title: 'How many recent messages to check. 1 checks only the latest message; 2 checks the latest and previous message; 0 checks all history.', target_prompts: 'Target Prompts (drag to move/sort)', search_ph: '🔍 Type keywords to filter prompts in all three lists...', unselected: 'Unselected Prompts', match_header: 'Enable on Match / Disable on End', nomatch_header: 'Disable on Match / Restore on End', editor_help: '💡 <b>How it works:</b> This plugin forcibly toggles prompt states according to rule conditions. When not matched, it applies the opposite state rather than remembering each prompt\'s previous manual state.<br>• <b>Include conditions:</b> One Regex per line. Select “All conditions match” to require 2, 3, or more conditions at the same time.<br>• <b>Exclude conditions:</b> If any exclude Regex appears, the rule will not trigger even if include conditions match.<br>• <b>Enable on Match (middle):</b> Put special prompts that should load only when triggered here. They are enabled on match and disabled when not matched.<br>• <b>Disable on Match (right):</b> Put always-on prompts that should be muted when triggered here. They are disabled on match and enabled when not matched.<br>(Usually the middle column is enough; the right column is for mutually exclusive or muted always-on prompts.)',
         save: 'Save', cancel: 'Cancel', create: 'Create', clear: 'Clear', keep_rules: 'Keep Rules', discard_rules: 'Discard Rules'
     }
 };
@@ -120,8 +120,13 @@ function localizeEditor(editorHtml) {
     editorHtml.find('#apt_editor_target option[value="ai_output"]').text(t('ai'));
     editorHtml.find('#apt_editor_target option[value="user_input"]').text(t('user'));
     editorHtml.find('#apt_editor_target option[value="both"]').text(t('both'));
+    editorHtml.find('label[data-i18n="Trigger Match Mode"]').text(t('trigger_mode'));
+    editorHtml.find('#apt_editor_trigger_mode option[value="any"]').text(t('trigger_mode_any'));
+    editorHtml.find('#apt_editor_trigger_mode option[value="all"]').text(t('trigger_mode_all'));
     editorHtml.find('label[data-i18n="Trigger (Regex)"]').text(t('trigger'));
     editorHtml.find('#apt_editor_trigger').attr('placeholder', t('trigger_ph'));
+    editorHtml.find('label[data-i18n="Exclude Trigger (Regex)"]').text(t('exclude_trigger'));
+    editorHtml.find('#apt_editor_exclude_trigger').attr('placeholder', t('exclude_trigger_ph'));
     editorHtml.find('label[data-i18n="Search Depth"]').text(t('depth')).attr('title', t('depth_title'));
     editorHtml.find('#apt_editor_depth').attr('title', t('depth_title'));
     editorHtml.find('label[data-i18n="Target Prompts"]').text(t('target_prompts'));
@@ -223,6 +228,77 @@ function getCompiledRegex(trigger, ruleId) {
     }
 }
 
+function normalizeTriggerList(value) {
+    if (Array.isArray(value)) {
+        return value.map(item => String(item ?? '').trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+        return value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function getRuleIncludeTriggers(rule) {
+    const triggers = normalizeTriggerList(rule.triggers);
+    if (triggers.length > 0) return triggers;
+    return normalizeTriggerList(rule.trigger);
+}
+
+function getRuleExcludeTriggers(rule) {
+    return normalizeTriggerList(rule.excludeTriggers);
+}
+
+function getRuleTriggerMode(rule) {
+    return rule.triggerMode === 'all' ? 'all' : 'any';
+}
+
+function testRegexList(triggers, text, ruleId) {
+    for (const trigger of triggers) {
+        const regex = getCompiledRegex(trigger, ruleId);
+        if (!regex) return null;
+        regex.lastIndex = 0;
+        if (!regex.test(text)) return false;
+    }
+    return true;
+}
+
+function doesMessageMatchRuleText(rule, textToUse, ruleId) {
+    const includeTriggers = getRuleIncludeTriggers(rule);
+    if (includeTriggers.length === 0) return false;
+
+    const excludeTriggers = getRuleExcludeTriggers(rule);
+    for (const excludeTrigger of excludeTriggers) {
+        const regex = getCompiledRegex(excludeTrigger, `${ruleId}_exclude`);
+        if (!regex) return false;
+        regex.lastIndex = 0;
+        if (regex.test(textToUse)) return false;
+    }
+
+    if (getRuleTriggerMode(rule) === 'all') {
+        return testRegexList(includeTriggers, textToUse, ruleId) === true;
+    }
+
+    for (const trigger of includeTriggers) {
+        const regex = getCompiledRegex(trigger, ruleId);
+        if (!regex) return false;
+        regex.lastIndex = 0;
+        if (regex.test(textToUse)) return true;
+    }
+
+    return false;
+}
+
+function getRuleConditionSummary(rule) {
+    const includeTriggers = getRuleIncludeTriggers(rule);
+    const excludeTriggers = getRuleExcludeTriggers(rule);
+    const modeText = getRuleTriggerMode(rule) === 'all' ? 'AND' : 'OR';
+    let summary = includeTriggers.length > 0 ? includeTriggers.join(` ${modeText} `) : '(無觸發條件)';
+    if (excludeTriggers.length > 0) {
+        summary += ` / NOT (${excludeTriggers.join(' OR ')})`;
+    }
+    return summary;
+}
+
 function normalizeImportedRule(rule) {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return null;
 
@@ -249,7 +325,16 @@ function normalizeImportedRule(rule) {
     normalized.name = typeof normalized.name === 'string' ? normalized.name : '';
     normalized.source = normalized.source === 'raw' ? 'raw' : 'display';
     normalized.target = ['ai_output', 'user_input', 'both'].includes(normalized.target) ? normalized.target : 'ai_output';
-    normalized.trigger = typeof normalized.trigger === 'string' ? normalized.trigger : '';
+    if (Array.isArray(normalized.triggers)) {
+        normalized.triggers = normalizeTriggerList(normalized.triggers);
+    } else if (typeof normalized.trigger === 'string') {
+        normalized.triggers = normalizeTriggerList(normalized.trigger);
+    } else {
+        normalized.triggers = [];
+    }
+    normalized.trigger = normalized.triggers.join('\n');
+    normalized.triggerMode = normalized.triggerMode === 'all' ? 'all' : 'any';
+    normalized.excludeTriggers = normalizeTriggerList(normalized.excludeTriggers);
 
     const depth = Number.parseInt(normalized.depth, 10);
     normalized.depth = Number.isFinite(depth) && depth >= 0 ? depth : 1;
@@ -360,7 +445,9 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
     editorHtml.find('#apt_editor_rule_name').val(rule.name || '');
     editorHtml.find('#apt_editor_source').val(rule.source || 'display');
     editorHtml.find('#apt_editor_target').val(rule.target || 'ai_output');
-    editorHtml.find('#apt_editor_trigger').val(rule.trigger || '');
+    editorHtml.find('#apt_editor_trigger_mode').val(getRuleTriggerMode(rule));
+    editorHtml.find('#apt_editor_trigger').val(getRuleIncludeTriggers(rule).join('\n'));
+    editorHtml.find('#apt_editor_exclude_trigger').val(getRuleExcludeTriggers(rule).join('\n'));
     editorHtml.find('#apt_editor_depth').val(rule.depth !== undefined ? rule.depth : 1);
     
     const listUnselected = editorHtml.find('#apt_editor_prompt_unselected');
@@ -508,7 +595,9 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
         const newRuleName = editorHtml.find('#apt_editor_rule_name').val().trim();
         const newSource = editorHtml.find('#apt_editor_source').val();
         const newTarget = editorHtml.find('#apt_editor_target').val();
-        const newTrigger = editorHtml.find('#apt_editor_trigger').val();
+        const newTriggerMode = editorHtml.find('#apt_editor_trigger_mode').val() === 'all' ? 'all' : 'any';
+        const newTriggers = normalizeTriggerList(editorHtml.find('#apt_editor_trigger').val());
+        const newExcludeTriggers = normalizeTriggerList(editorHtml.find('#apt_editor_exclude_trigger').val());
         const newDepth = parseInt(editorHtml.find('#apt_editor_depth').val() || '1', 10);
         
         // Collect checked values directly from the DOM order of the selected lists
@@ -527,7 +616,10 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
                 name: newRuleName,
                 source: newSource,
                 target: newTarget,
-                trigger: newTrigger, 
+                triggerMode: newTriggerMode,
+                triggers: newTriggers,
+                trigger: newTriggers.join('\n'),
+                excludeTriggers: newExcludeTriggers,
                 depth: newDepth,
                 matchPromptIds: newMatchPromptIds,
                 noMatchPromptIds: newNoMatchPromptIds,
@@ -613,12 +705,13 @@ function renderSingleList(rules, listElementId, ruleType) {
             depthText = rule.depth === 0 ? '[全部訊息] ' : (rule.depth === 1 ? '' : `[前 ${rule.depth} 則] `);
         }
         
-        const generatedSummaryText = `${targetText}${sourceText}${depthText}${rule.trigger || '(無觸發條件)'} ➜ ${promptDisplay}`;
+        const conditionSummary = getRuleConditionSummary(rule);
+        const generatedSummaryText = `${targetText}${sourceText}${depthText}${conditionSummary} ➜ ${promptDisplay}`;
         const displayText = rule.name ? rule.name : generatedSummaryText;
         
         item.find('.apt-rule-summary').text(displayText);
         
-        let detailsStr = `詳細條件: [${rule.target || 'ai_output'}][${rule.source || 'display'}]${depthText} ${rule.trigger || '(無觸發條件)'}\n`;
+        let detailsStr = `詳細條件: [${rule.target || 'ai_output'}][${rule.source || 'display'}]${depthText} ${conditionSummary}\n`;
         if (matchNames.length > 0) detailsStr += `\n[符合時開啟, 不符時關閉]:\n- ${matchNames.join('\n- ')}`;
         if (noMatchNames.length > 0) detailsStr += `\n\n[不符時開啟, 符合時關閉]:\n- ${noMatchNames.join('\n- ')}`;
 
@@ -730,7 +823,7 @@ function processText(recentMessages) {
     allRules.forEach((rule) => {
         const ruleId = rule.id;
         if (rule.enabled === false) return;
-        if (!rule.trigger) return; // trigger must exist
+        if (getRuleIncludeTriggers(rule).length === 0) return; // trigger must exist
         
         // Fallback for old rule structure
         const matchIds = rule.matchPromptIds || rule.promptIds || [rule.promptId].filter(Boolean);
@@ -759,10 +852,7 @@ function processText(recentMessages) {
             if (target === 'both' && (msg.type !== 'ai' && msg.type !== 'user')) continue;
 
             const textToUse = (rule.source === 'raw') ? (msg.rawText || '') : msg.displayText;
-            const regex = getCompiledRegex(rule.trigger, ruleId);
-            if (!regex) return;
-            regex.lastIndex = 0;
-            if (regex.test(textToUse)) {
+            if (doesMessageMatchRuleText(rule, textToUse, ruleId)) {
                 isMatch = true;
                 break; // Found a match, no need to check older messages for this rule
             }

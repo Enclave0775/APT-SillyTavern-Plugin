@@ -36,9 +36,95 @@
     margin-right: 8px;
 }
 
-.apt-dual-list-container {
+.auto-prompt-toggler-editor {
+    width: min(100%, 980px);
+    margin: 0 auto;
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 10px;
+    scrollbar-gutter: stable;
+}
+
+.auto-prompt-toggler-editor::-webkit-scrollbar,
+.apt-sortable-list::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.auto-prompt-toggler-editor::-webkit-scrollbar-track,
+.apt-sortable-list::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 70%, transparent);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+}
+
+.auto-prompt-toggler-editor::-webkit-scrollbar-thumb,
+.apt-sortable-list::-webkit-scrollbar-thumb {
+    background: var(--SmartThemeQuoteColor);
+    border: 2px solid var(--SmartThemeBlurTintColor);
+    border-radius: 999px;
+}
+
+.auto-prompt-toggler-editor::-webkit-scrollbar-thumb:hover,
+.apt-sortable-list::-webkit-scrollbar-thumb:hover {
+    background: var(--SmartThemeHoverColor);
+}
+
+.auto-prompt-toggler-editor,
+.apt-sortable-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--SmartThemeQuoteColor) var(--SmartThemeBlurTintColor);
+}
+
+.apt-editor-form {
+    gap: 12px;
+}
+
+.apt-editor-section {
+    width: 100%;
+}
+
+.apt-editor-field {
     display: flex;
-    gap: 20px;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.apt-editor-field label {
+    text-align: left;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.apt-editor-grid,
+.apt-editor-conditions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+.apt-editor-field-wide,
+.apt-editor-field-full {
+    grid-column: 1 / -1;
+}
+
+.auto-prompt-toggler-editor .text_pole,
+.auto-prompt-toggler-editor textarea,
+.auto-prompt-toggler-editor select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.auto-prompt-toggler-editor textarea {
+    resize: vertical;
+    min-height: 76px;
+}
+
+.apt-dual-list-container {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
     margin-top: 5px;
     width: 100%;
 }
@@ -62,8 +148,8 @@
     margin: 0;
     border: 2px solid var(--SmartThemeBorderColor);
     background-color: var(--SmartThemeBlurTintColor);
-    min-height: 200px;
-    height: 300px; /* Default height */
+    min-height: 110px;
+    height: clamp(120px, 24vh, 260px);
     overflow-y: auto;
     resize: vertical; /* Allow vertical resizing */
 }
@@ -96,4 +182,81 @@
 
 .apt-search-hidden {
     display: none !important;
+}
+
+@media (max-width: 900px) {
+    .auto-prompt-toggler-editor {
+        width: 100%;
+    }
+
+    .apt-dual-list-container {
+        gap: 10px;
+    }
+
+    .apt-sortable-list {
+        height: clamp(100px, 20vh, 220px);
+    }
+}
+
+@media (max-width: 700px) {
+    .auto-prompt-toggler-editor {
+        max-height: 72vh;
+        padding-right: 8px;
+    }
+
+    .apt-editor-grid,
+    .apt-editor-conditions,
+    .apt-dual-list-container {
+        grid-template-columns: 1fr;
+    }
+
+    .apt-editor-form {
+        gap: 10px;
+    }
+
+    .apt-list-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background-color: var(--SmartThemeBlurTintColor);
+        padding: 4px;
+        border-radius: 4px;
+    }
+
+    .apt-sortable-list {
+        min-height: 90px;
+        height: 150px;
+        resize: vertical;
+    }
+
+    .apt-sortable-item {
+        padding: 10px;
+        font-size: 0.95em;
+    }
+
+    .auto-prompt-toggler-editor small {
+        display: block;
+        line-height: 1.45;
+    }
+}
+
+@media (max-width: 480px) {
+    .auto-prompt-toggler-editor {
+        max-height: 70vh;
+        padding-right: 6px;
+    }
+
+    .auto-prompt-toggler-editor .text_pole,
+    .auto-prompt-toggler-editor textarea,
+    .auto-prompt-toggler-editor select {
+        font-size: 16px; /* Prevent mobile browsers from zooming input fields */
+    }
+
+    .apt-editor-field label {
+        font-size: 0.95em;
+    }
+
+    .apt-sortable-list {
+        height: 130px;
+    }
 }
