@@ -184,6 +184,70 @@
     display: none !important;
 }
 
+.apt-controlled-search-panel {
+    width: 100%;
+    border: 1px solid var(--SmartThemeBorderColor);
+    padding: 8px;
+    margin-bottom: 15px;
+    background-color: var(--SmartThemeBlurTintColor);
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+.apt-controlled-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.apt-controlled-row {
+    border: 1px solid var(--SmartThemeBorderColor);
+    background-color: color-mix(in srgb, var(--SmartThemeBlurTintColor) 80%, transparent);
+    border-radius: 4px;
+    padding: 6px 8px;
+}
+
+.apt-controlled-title {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.apt-controlled-id {
+    font-size: 0.82em;
+    color: var(--SmartThemeQuoteColor);
+    overflow-wrap: anywhere;
+}
+
+.apt-controlled-controls {
+    margin-top: 4px;
+    font-size: 0.9em;
+}
+
+.apt-controlled-control {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    margin-top: 3px;
+}
+
+.apt-controlled-scope,
+.apt-controlled-behavior,
+.apt-controlled-off {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 0.85em;
+}
+
+.apt-controlled-disabled {
+    opacity: 0.55;
+}
+
 @media (max-width: 900px) {
     .auto-prompt-toggler-editor {
         width: 100%;

@@ -1,4 +1,4 @@
-import { chat, eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
+import { chat, eventSource, event_types, main_api, saveSettingsDebounced } from '../../../../script.js';
 import { extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { promptManager } from '../../../openai.js';
 import { download, getFileText, escapeHtml } from '../../../utils.js';
@@ -19,7 +19,7 @@ const APT_LANGUAGES = {
         no_global_rules: '暫無全域規則', no_preset_rules: '暫無 Preset 規則', contact_text: '對於插件有問題可聯絡提問', original_author: '原作者 (Original Author):',
         enabled_title: '啟用/停用', edit: '編輯', duplicate: '複製', export: '匯出', move_rule: '移動規則', delete: '刪除',
         rule_name: '規則名稱 (選填，方便分類識別)', rule_name_ph: '例如: 睡覺判定', source: '偵測來源 (Detection Source)', display: '聊天顯示 (Chat Display)', raw: '原始內容 (Raw Content)', target: '偵測對象 (Detection Target)', ai: 'AI 輸出 (AI Output)', user: '使用者輸入 (User Input)', both: '兩者 (Both)', trigger_mode: '觸發模式 (Trigger Mode)', trigger_mode_any: '任一條件符合 (OR / Any)', trigger_mode_all: '所有條件皆符合 (AND / All)', trigger: '包含條件 (Regex，每行一個)', trigger_ph: '例如:\n出鞘\n劍', exclude_trigger: '排除條件 (Regex，每行一個，選填)', exclude_trigger_ph: '例如:\n木劍\n練習劍', depth: '檢查層數 (Search Depth)', depth_title: '設定要往回檢查多少則訊息。1 代表只檢查最新的一則，2 代表檢查最新與前一則，以此類推。0 代表檢查所有歷史訊息。', target_prompts: '目標提示詞 (拖曳移動/排序)', search_ph: '🔍 輸入關鍵字以過濾三個清單中的提示詞...', unselected: '未選擇的提示詞', match_header: '觸發時啟用 / 結束時關閉', nomatch_header: '觸發時停用 / 結束時還原', editor_help: '💡 <b>運作說明：</b> 此插件會依照規則條件強制切換提示詞狀態；未觸發時會套用相反狀態，而不是記住每個提示詞先前的手動狀態。<br>• <b>包含條件：</b> 每行一個 Regex。選「所有條件皆符合」即可要求 2 個、3 個以上條件同時出現。<br>• <b>排除條件：</b> 只要任一排除 Regex 出現，即使包含條件符合也不觸發。<br>• <b>觸發時啟用 (中間)：</b> 放「觸發才加載的特殊設定」。符合條件時開啟，未符合時關閉。<br>• <b>觸發時停用 (右邊)：</b> 放「觸發就卸載的常駐設定」。符合條件時關閉，未符合時開啟。<br>(通常只需使用中間框即可，右邊框用來處理必須互斥/靜音的常駐提示詞)',
-        save: '儲存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留規則', discard_rules: '捨棄規則'
+        save: '儲存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留規則', discard_rules: '捨棄規則', controlled_search: '搜尋受規則控制的提示詞', controlled_search_ph: '輸入提示詞名稱/ID 或規則名稱...', controlled_search_empty: '沒有找到受規則控制的提示詞', controlled_search_hint: '搜尋範圍包含目前全域設定檔與目前 Preset 的所有規則。', controlled_by: '控制來源'
     },
     'zh-CN': {
         language_label: '界面语言', show_notifications: '显示通知 (Show Notifications)', show_notifications_title: '切换提示词时显示通知',
@@ -29,7 +29,7 @@ const APT_LANGUAGES = {
         no_global_rules: '暂无全局规则', no_preset_rules: '暂无 Preset 规则', contact_text: '插件如有问题可联系提问', original_author: '原作者 (Original Author):',
         enabled_title: '启用/停用', edit: '编辑', duplicate: '复制', export: '导出', move_rule: '移动规则', delete: '删除',
         rule_name: '规则名称 (选填，方便分类识别)', rule_name_ph: '例如: 睡觉判定', source: '检测来源 (Detection Source)', display: '聊天显示 (Chat Display)', raw: '原始内容 (Raw Content)', target: '检测对象 (Detection Target)', ai: 'AI 输出 (AI Output)', user: '用户输入 (User Input)', both: '两者 (Both)', trigger_mode: '触发模式 (Trigger Mode)', trigger_mode_any: '任一条件符合 (OR / Any)', trigger_mode_all: '所有条件皆符合 (AND / All)', trigger: '包含条件 (Regex，每行一个)', trigger_ph: '例如:\n出鞘\n剑', exclude_trigger: '排除条件 (Regex，每行一个，选填)', exclude_trigger_ph: '例如:\n木剑\n练习剑', depth: '检查层数 (Search Depth)', depth_title: '设置要往回检查多少条消息。1 代表只检查最新一条，2 代表检查最新与前一条，0 代表检查所有历史消息。', target_prompts: '目标提示词 (拖拽移动/排序)', search_ph: '🔍 输入关键字以过滤三个列表中的提示词...', unselected: '未选择的提示词', match_header: '触发时启用 / 结束时关闭', nomatch_header: '触发时停用 / 结束时还原', editor_help: '💡 <b>运行说明：</b> 此插件会依照规则条件强制切换提示词状态；未触发时会套用相反状态，而不是记住每个提示词先前的手动状态。<br>• <b>包含条件：</b> 每行一个 Regex。选择「所有条件皆符合」即可要求 2 个、3 个以上条件同时出现。<br>• <b>排除条件：</b> 只要任一排除 Regex 出现，即使包含条件符合也不触发。<br>• <b>触发时启用 (中间)：</b> 放「触发才加载的特殊设置」。符合条件时开启，未符合时关闭。<br>• <b>触发时停用 (右边)：</b> 放「触发就卸载的常驻设置」。符合条件时关闭，未符合时开启。<br>(通常只需使用中间框即可，右边框用来处理必须互斥/静音的常驻提示词)',
-        save: '保存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留规则', discard_rules: '舍弃规则'
+        save: '保存', cancel: '取消', create: '建立', clear: '清空', keep_rules: '保留规则', discard_rules: '舍弃规则', controlled_search: '搜索受规则控制的提示词', controlled_search_ph: '输入提示词名称/ID 或规则名称...', controlled_search_empty: '没有找到受规则控制的提示词', controlled_search_hint: '搜索范围包含当前全局配置文件与当前 Preset 的所有规则。', controlled_by: '控制来源'
     },
     en: {
         language_label: 'Interface Language', show_notifications: 'Show Notifications', show_notifications_title: 'Show a notification when prompts are toggled',
@@ -39,7 +39,7 @@ const APT_LANGUAGES = {
         no_global_rules: 'No global rules', no_preset_rules: 'No Preset rules', contact_text: 'If you have questions or issues, feel free to contact:', original_author: 'Original Author:',
         enabled_title: 'Enable/Disable', edit: 'Edit', duplicate: 'Duplicate', export: 'Export', move_rule: 'Move rule', delete: 'Delete',
         rule_name: 'Rule Name (optional)', rule_name_ph: 'e.g. Sleep detection', source: 'Detection Source', display: 'Chat Display', raw: 'Raw Content', target: 'Detection Target', ai: 'AI Output', user: 'User Input', both: 'Both', trigger_mode: 'Trigger Mode', trigger_mode_any: 'Any condition matches (OR / Any)', trigger_mode_all: 'All conditions match (AND / All)', trigger: 'Include Conditions (Regex, one per line)', trigger_ph: 'e.g.\nunsheathe\nsword', exclude_trigger: 'Exclude Conditions (Regex, one per line, optional)', exclude_trigger_ph: 'e.g.\nwooden sword\npractice sword', depth: 'Search Depth', depth_title: 'How many recent messages to check. 1 checks only the latest message; 2 checks the latest and previous message; 0 checks all history.', target_prompts: 'Target Prompts (drag to move/sort)', search_ph: '🔍 Type keywords to filter prompts in all three lists...', unselected: 'Unselected Prompts', match_header: 'Enable on Match / Disable on End', nomatch_header: 'Disable on Match / Restore on End', editor_help: '💡 <b>How it works:</b> This plugin forcibly toggles prompt states according to rule conditions. When not matched, it applies the opposite state rather than remembering each prompt\'s previous manual state.<br>• <b>Include conditions:</b> One Regex per line. Select “All conditions match” to require 2, 3, or more conditions at the same time.<br>• <b>Exclude conditions:</b> If any exclude Regex appears, the rule will not trigger even if include conditions match.<br>• <b>Enable on Match (middle):</b> Put special prompts that should load only when triggered here. They are enabled on match and disabled when not matched.<br>• <b>Disable on Match (right):</b> Put always-on prompts that should be muted when triggered here. They are disabled on match and enabled when not matched.<br>(Usually the middle column is enough; the right column is for mutually exclusive or muted always-on prompts.)',
-        save: 'Save', cancel: 'Cancel', create: 'Create', clear: 'Clear', keep_rules: 'Keep Rules', discard_rules: 'Discard Rules'
+        save: 'Save', cancel: 'Cancel', create: 'Create', clear: 'Clear', keep_rules: 'Keep Rules', discard_rules: 'Discard Rules', controlled_search: 'Search prompts controlled by rules', controlled_search_ph: 'Type prompt name/ID or rule name...', controlled_search_empty: 'No controlled prompts found', controlled_search_hint: 'Search includes all rules in the current global profile and current Preset.', controlled_by: 'Controlled by'
     }
 };
 
@@ -103,6 +103,9 @@ function applyLanguageToSettings() {
     $('#apt_preset_import').attr('title', t('import_preset_rule'));
     $('#apt_preset_export').attr('title', t('export_preset_rule'));
     $('#apt_preset_clear').attr('title', t('clear_preset_rule'));
+    $('#apt_controlled_prompt_search_label').text(t('controlled_search'));
+    $('#apt_controlled_prompt_search').attr('placeholder', t('controlled_search_ph'));
+    $('#apt_controlled_prompt_hint').text(t('controlled_search_hint'));
     $('.apt-rule-enable').attr('title', t('enabled_title'));
     $('.rule-edit').attr('title', t('edit'));
     $('.rule-duplicate').attr('title', t('duplicate'));
@@ -163,6 +166,7 @@ function getCurrentGlobalProfileName() {
 function setCurrentGlobalProfileName(name) {
     extension_settings[SETTINGS_KEY_GLOBAL_PROFILE] = name;
     saveSettingsDebounced();
+    forceRecheck();
 }
 
 function getGlobalRules() {
@@ -173,34 +177,113 @@ function getGlobalRules() {
 
 function forceRecheck() {
     lastMessageId = null;
-    
-    // Get recent messages from DOM to re-trigger the check
-    const chatContainer = document.querySelector('#chat');
-    if (!chatContainer) return;
-    const messages = chatContainer.querySelectorAll('.mes');
-    if (messages.length === 0) return;
-    
-    const recentMessages = [];
     const allRules = [
         ...getGlobalRules(),
         ...currentPresetRules
     ];
-    
+
+    const recentMessages = collectRecentMessagesForRules(allRules);
+    debouncedProcessText(recentMessages);
+}
+
+function isChatCompletionApiActive() {
+    return typeof main_api === 'undefined' || main_api === 'openai';
+}
+
+function getOpenAiPresetManager() {
+    try {
+        return getPresetManager('openai') || getPresetManager();
+    } catch (e) {
+        console.warn('[APT] Could not get OpenAI preset manager:', e);
+        return null;
+    }
+}
+
+function getMessagesByMesId() {
+    const chatContainer = document.querySelector('#chat');
+    const messages = chatContainer ? Array.from(chatContainer.querySelectorAll('.mes')) : [];
+    const byMesId = new Map();
+
+    messages.forEach((msgDiv, domIndex) => {
+        const mesId = Number(msgDiv?.getAttribute?.('mesid'));
+        if (Number.isInteger(mesId) && mesId >= 0) {
+            byMesId.set(mesId, msgDiv);
+        } else {
+            byMesId.set(`dom-${domIndex}`, msgDiv);
+        }
+    });
+
+    return { messages, byMesId };
+}
+
+function getChatMessageForElement(msgDiv, fallbackIndex = -1) {
+    if (typeof chat === 'undefined' || !Array.isArray(chat)) return null;
+
+    const mesId = Number(msgDiv?.getAttribute?.('mesid'));
+    if (Number.isInteger(mesId) && mesId >= 0 && mesId < chat.length) {
+        return chat[mesId];
+    }
+
+    return fallbackIndex >= 0 && fallbackIndex < chat.length ? chat[fallbackIndex] : null;
+}
+
+function getRuleDepthRange(allRules) {
     let maxDepth = 1;
     let checkAll = false;
+
     for (const rule of allRules) {
-        if (rule.depth === 0) checkAll = true;
-        if (rule.depth > maxDepth) maxDepth = rule.depth;
+        if (rule?.enabled === false) continue;
+
+        const depth = Number.parseInt(rule?.depth, 10);
+        if (depth === 0) {
+            checkAll = true;
+        } else if (Number.isFinite(depth) && depth > maxDepth) {
+            maxDepth = depth;
+        }
     }
-    
+
+    return { maxDepth, checkAll };
+}
+
+function collectRecentMessagesForRules(allRules) {
+    const { maxDepth, checkAll } = getRuleDepthRange(allRules);
+    const { messages, byMesId } = getMessagesByMesId();
+    const recentMessages = [];
+
+    // Prefer SillyTavern's authoritative chat array. DOM may be virtualized and only contain
+    // the visible tail, so using DOM length/index can miss older messages or map to chat[0..n].
+    if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
+        const countToProcess = checkAll ? chat.length : Math.min(chat.length, maxDepth);
+        const startIndex = chat.length - countToProcess;
+
+        for (let chatIndex = startIndex; chatIndex < chat.length; chatIndex++) {
+            const chatMsg = chat[chatIndex];
+            const msgDiv = byMesId.get(chatIndex) || null;
+            recentMessages.push(extractMessageData(msgDiv, chatMsg));
+        }
+
+        return recentMessages;
+    }
+
+    // Fallback for contexts where chat is unavailable: use currently rendered DOM messages.
     const countToProcess = checkAll ? messages.length : Math.min(messages.length, maxDepth);
     for (let i = messages.length - countToProcess; i < messages.length; i++) {
         const msgDiv = messages[i];
-        const chatMsg = (typeof chat !== 'undefined' && Array.isArray(chat) && i < chat.length) ? chat[i] : null;
+        const chatMsg = getChatMessageForElement(msgDiv, i);
         recentMessages.push(extractMessageData(msgDiv, chatMsg));
     }
-    
-    debouncedProcessText(recentMessages);
+
+    return recentMessages;
+}
+
+function getLatestMessageId() {
+    if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
+        return `chat-${chat.length - 1}`;
+    }
+
+    const { messages } = getMessagesByMesId();
+    const lastMessageElement = messages[messages.length - 1];
+    return lastMessageElement?.getAttribute?.('mesid') || (messages.length > 0 ? `dom-msg-${messages.length - 1}` : null);
 }
 
 function clearRuleCaches() {
@@ -208,22 +291,24 @@ function clearRuleCaches() {
     invalidRegexWarnings.clear();
 }
 
-function getCompiledRegex(trigger, ruleId) {
-    if (regexCache.has(trigger)) {
-        return regexCache.get(trigger);
+function getCompiledRegex(trigger, ruleId, flags = 'i') {
+    const cacheKey = `${flags}\u0000${trigger}`;
+    const warningKey = `${ruleId}\u0000${trigger}`;
+    if (regexCache.has(cacheKey)) {
+        return regexCache.get(cacheKey);
     }
 
     try {
-        const regex = new RegExp(trigger, 'i');
-        regexCache.set(trigger, regex);
+        const regex = new RegExp(trigger, flags);
+        regexCache.set(cacheKey, regex);
         return regex;
     } catch (e) {
-        if (!invalidRegexWarnings.has(trigger)) {
-            invalidRegexWarnings.add(trigger);
+        if (!invalidRegexWarnings.has(warningKey)) {
+            invalidRegexWarnings.add(warningKey);
             console.error(`[AutoPromptToggler] Invalid regex in rule ${ruleId}:`, trigger, e);
             toastr?.error?.(`規則 ${ruleId} 的 Regex 無效，已略過此規則`, 'Auto Prompt Toggler');
         }
-        regexCache.set(trigger, null);
+        regexCache.set(cacheKey, null);
         return null;
     }
 }
@@ -269,18 +354,18 @@ function doesMessageMatchRuleText(rule, textToUse, ruleId) {
     const excludeTriggers = getRuleExcludeTriggers(rule);
     for (const excludeTrigger of excludeTriggers) {
         const regex = getCompiledRegex(excludeTrigger, `${ruleId}_exclude`);
-        if (!regex) return false;
+        if (!regex) return null;
         regex.lastIndex = 0;
         if (regex.test(textToUse)) return false;
     }
 
     if (getRuleTriggerMode(rule) === 'all') {
-        return testRegexList(includeTriggers, textToUse, ruleId) === true;
+        return testRegexList(includeTriggers, textToUse, ruleId);
     }
 
     for (const trigger of includeTriggers) {
         const regex = getCompiledRegex(trigger, ruleId);
-        if (!regex) return false;
+        if (!regex) return null;
         regex.lastIndex = 0;
         if (regex.test(textToUse)) return true;
     }
@@ -355,25 +440,25 @@ function saveGlobalRules(rules) {
 }
 
 async function savePresetRules() {
-    const presetMgr = getPresetManager();
+    const presetMgr = getOpenAiPresetManager();
     if (!presetMgr) return;
     
     currentPresetName = presetMgr.getSelectedPresetName();
     if (!currentPresetName) return;
 
-        try {
-            await presetMgr.writePresetExtensionField({
-                name: currentPresetName,
-                path: 'auto_prompt_toggler',
-                value: { rules: currentPresetRules },
-            });
-            console.log('[APT] Preset rules saved to file successfully.');
-            clearRuleCaches();
-            forceRecheck();
-        } catch (e) {
-            console.error('[APT] Error saving preset rules to file:', e);
-        }
+    try {
+        await presetMgr.writePresetExtensionField({
+            name: currentPresetName,
+            path: 'auto_prompt_toggler',
+            value: { rules: currentPresetRules },
+        });
+        console.log('[APT] Preset rules saved to file successfully.');
+        clearRuleCaches();
+        forceRecheck();
+    } catch (e) {
+        console.error('[APT] Error saving preset rules to file:', e);
     }
+}
 
 function getNotificationsEnabled() {
     const val = extension_settings[SETTINGS_KEY_NOTIFICATIONS];
@@ -404,7 +489,10 @@ function getAvailablePrompts() {
         return [];
     }
     
-    if (!activeOrder || !Array.isArray(activeOrder)) return [];
+    if (!activeOrder || !Array.isArray(activeOrder) || activeOrder.length === 0) {
+        const prompts = promptManager?.serviceSettings?.prompts;
+        return Array.isArray(prompts) ? prompts.filter(p => p && p.identifier) : [];
+    }
     
     // Map order entries to prompt objects
     const result = activeOrder.map(entry => {
@@ -418,7 +506,129 @@ function getAvailablePrompts() {
     return result.filter(p => p !== null);
 }
 
+function getPromptOrderEntrySafe(promptId) {
+    if (!promptManager || !promptId) return null;
+
+    try {
+        const activeEntry = promptManager.getPromptOrderEntry?.(promptManager.activeCharacter, promptId);
+        if (activeEntry) return activeEntry;
+    } catch (e) {
+        console.warn('[APT] Failed to get active prompt order entry:', e);
+    }
+
+    const promptOrders = promptManager?.serviceSettings?.prompt_order;
+    if (!Array.isArray(promptOrders)) return null;
+
+    for (const promptList of promptOrders) {
+        const entry = Array.isArray(promptList?.order) ? promptList.order.find(item => item?.identifier === promptId) : null;
+        if (entry) return entry;
+    }
+
+    return null;
+}
+
+function sanitizeFileNamePart(value, fallback = 'rules') {
+    return String(value || fallback).replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim() || fallback;
+}
+
+function getAllRulesWithMeta() {
+    return [
+        ...getGlobalRules().map((rule, index) => ({ rule, id: `global_${index}`, scope: 'global', scopeLabel: `Global:${getCurrentGlobalProfileName()}`, index, scopePriority: 0 })),
+        ...currentPresetRules.map((rule, index) => ({ rule, id: `preset_${index}`, scope: 'preset', scopeLabel: `Preset:${currentPresetName || ''}`, index, scopePriority: 1 })),
+    ];
+}
+
+function getRulePromptIds(rule) {
+    const matchIds = Array.isArray(rule.matchPromptIds) ? rule.matchPromptIds : (Array.isArray(rule.promptIds) ? rule.promptIds : [rule.promptId].filter(Boolean));
+    const noMatchIds = Array.isArray(rule.noMatchPromptIds) ? rule.noMatchPromptIds : [];
+    return { matchIds, noMatchIds };
+}
+
+function getConflictPriority(meta, isMatchedAction) {
+    // Matched actions outrank inverse/restoration actions; Preset rules outrank Global rules; later rules win ties.
+    return (isMatchedAction ? 10000 : 0) + (meta.scopePriority * 1000) + meta.index;
+}
+
+function collectControlledPromptRows() {
+    const promptsById = new Map(getAvailablePrompts().map(prompt => [prompt.identifier, prompt]));
+    const rowsByPromptId = new Map();
+
+    for (const meta of getAllRulesWithMeta()) {
+        const { rule } = meta;
+        const { matchIds, noMatchIds } = getRulePromptIds(rule);
+        const ruleName = rule.name || getRuleConditionSummary(rule);
+        const append = (promptId, behavior) => {
+            if (!promptId) return;
+            const prompt = promptsById.get(promptId) || promptManager?.getPromptById?.(promptId) || { identifier: promptId, name: promptId };
+            if (!rowsByPromptId.has(promptId)) {
+                rowsByPromptId.set(promptId, {
+                    promptId,
+                    promptName: prompt?.name || promptId,
+                    controls: [],
+                });
+            }
+            rowsByPromptId.get(promptId).controls.push({
+                scopeLabel: meta.scopeLabel,
+                ruleName,
+                behavior,
+                enabled: rule.enabled !== false,
+            });
+        };
+
+        matchIds.forEach(promptId => append(promptId, t('match_header')));
+        noMatchIds.forEach(promptId => append(promptId, t('nomatch_header')));
+    }
+
+    return [...rowsByPromptId.values()].sort((a, b) => a.promptName.localeCompare(b.promptName));
+}
+
+function renderControlledPromptSearch() {
+    const container = $('#apt_controlled_prompt_results');
+    if (!container.length) return;
+
+    const searchTerm = String($('#apt_controlled_prompt_search').val() || '').trim().toLowerCase();
+    const rows = collectControlledPromptRows().filter(row => {
+        if (!searchTerm) return true;
+        const haystack = [
+            row.promptId,
+            row.promptName,
+            ...row.controls.flatMap(control => [control.scopeLabel, control.ruleName, control.behavior]),
+        ].join(' ').toLowerCase();
+        return haystack.includes(searchTerm);
+    });
+
+    container.empty();
+    if (rows.length === 0) {
+        container.append(`<div class="apt-no-rules">${escapeHtml(t('controlled_search_empty'))}</div>`);
+        return;
+    }
+
+    for (const row of rows) {
+        const controlsHtml = row.controls.map(control => `
+            <div class="apt-controlled-control ${control.enabled ? '' : 'apt-controlled-disabled'}">
+                <span class="apt-controlled-scope">${escapeHtml(control.scopeLabel)}</span>
+                <span>${escapeHtml(control.ruleName)}</span>
+                <span class="apt-controlled-behavior">${escapeHtml(control.behavior)}</span>
+                ${control.enabled ? '' : '<span class="apt-controlled-off">OFF</span>'}
+            </div>
+        `).join('');
+
+        container.append(`
+            <div class="apt-controlled-row">
+                <div class="apt-controlled-title" title="${escapeHtml(row.promptId)}">${escapeHtml(row.promptName)}</div>
+                <div class="apt-controlled-id">${escapeHtml(row.promptId)}</div>
+                <div class="apt-controlled-controls"><strong>${escapeHtml(t('controlled_by'))}:</strong>${controlsHtml}</div>
+            </div>
+        `);
+    }
+}
+
 async function openEditor(ruleType = 'global', ruleIndex = -1) {
+    if (!isChatCompletionApiActive()) {
+        toastr.warning('APT 目前只支援 Chat Completion / OpenAI 類型的提示詞預設。', 'Auto Prompt Toggler');
+        return;
+    }
+
     const rules = ruleType === 'global' ? getGlobalRules() : currentPresetRules;
     // Support new structure (matchPromptIds, noMatchPromptIds) alongside fallback to old promptIds
     const rule = ruleIndex >= 0 ? rules[ruleIndex] : { enabled: true, matchPromptIds: [], noMatchPromptIds: [] };
@@ -455,10 +665,8 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
     const listNoMatch = editorHtml.find('#apt_editor_prompt_nomatch');
     const prompts = getAvailablePrompts();
 
-    // Debug info
     const charId = promptManager?.activeCharacter?.id ?? 'unknown';
     console.log(`[APT] Editor opened. Active Character ID: ${charId}. Found ${prompts.length} prompts.`);
-    editorHtml.find('.apt-dual-list-container').after(`<div style="font-size: 0.8em; color: gray; margin-top: 5px;">Active CharID: ${charId} | Prompts: ${prompts.length}</div>`);
     
     // Categorize prompts
     const matchPrompts = [];
@@ -598,7 +806,8 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
         const newTriggerMode = editorHtml.find('#apt_editor_trigger_mode').val() === 'all' ? 'all' : 'any';
         const newTriggers = normalizeTriggerList(editorHtml.find('#apt_editor_trigger').val());
         const newExcludeTriggers = normalizeTriggerList(editorHtml.find('#apt_editor_exclude_trigger').val());
-        const newDepth = parseInt(editorHtml.find('#apt_editor_depth').val() || '1', 10);
+        const parsedDepth = parseInt(editorHtml.find('#apt_editor_depth').val() || '1', 10);
+        const newDepth = Number.isFinite(parsedDepth) && parsedDepth >= 0 ? parsedDepth : 1;
         
         // Collect checked values directly from the DOM order of the selected lists
         const newMatchPromptIds = [];
@@ -702,7 +911,7 @@ function renderSingleList(rules, listElementId, ruleType) {
         
         let depthText = '';
         if (rule.depth !== undefined) {
-            depthText = rule.depth === 0 ? '[全部訊息] ' : (rule.depth === 1 ? '' : `[前 ${rule.depth} 則] `);
+            depthText = rule.depth === 0 ? '[全部訊息] ' : (rule.depth === 1 ? '' : `[最近 ${rule.depth} 則] `);
         }
         
         const conditionSummary = getRuleConditionSummary(rule);
@@ -803,6 +1012,7 @@ function renderGlobalProfileSelect() {
 function renderRulesLists() {
     renderSingleList(getGlobalRules(), 'apt_global_rules_list', 'global');
     renderSingleList(currentPresetRules, 'apt_preset_rules_list', 'preset');
+    renderControlledPromptSearch();
     applyLanguageToSettings();
 }
 
@@ -814,20 +1024,19 @@ function debouncedProcessText(recentMessages) {
 }
 
 function processText(recentMessages) {
-    const allRules = [
-        ...getGlobalRules().map((r, i) => ({...r, id: `global_${i}`})),
-        ...currentPresetRules.map((r, i) => ({...r, id: `preset_${i}`}))
-    ];
+    if (!isChatCompletionApiActive()) return;
+
+    const allRules = getAllRulesWithMeta();
+    const pendingStates = new Map();
     let changed = false;
 
-    allRules.forEach((rule) => {
-        const ruleId = rule.id;
+    allRules.forEach((meta) => {
+        const { rule } = meta;
+        const ruleId = meta.id;
         if (rule.enabled === false) return;
         if (getRuleIncludeTriggers(rule).length === 0) return; // trigger must exist
         
-        // Fallback for old rule structure
-        const matchIds = rule.matchPromptIds || rule.promptIds || [rule.promptId].filter(Boolean);
-        const noMatchIds = rule.noMatchPromptIds || [];
+        const { matchIds, noMatchIds } = getRulePromptIds(rule);
         
         if (matchIds.length === 0 && noMatchIds.length === 0) return;
 
@@ -842,6 +1051,7 @@ function processText(recentMessages) {
         
         // Check if any message in the depth range matches
         let isMatch = false;
+        let invalidRule = false;
         const target = rule.target || 'ai_output';
 
         for (const msg of messagesToCheck) {
@@ -852,49 +1062,57 @@ function processText(recentMessages) {
             if (target === 'both' && (msg.type !== 'ai' && msg.type !== 'user')) continue;
 
             const textToUse = (rule.source === 'raw') ? (msg.rawText || '') : msg.displayText;
-            if (doesMessageMatchRuleText(rule, textToUse, ruleId)) {
+            const matchResult = doesMessageMatchRuleText(rule, textToUse, ruleId);
+            if (matchResult === null) {
+                invalidRule = true;
+                break;
+            }
+            if (matchResult === true) {
                 isMatch = true;
                 break; // Found a match, no need to check older messages for this rule
             }
         }
 
+        if (invalidRule) return;
+
         try {
             if (!promptManager) return;
-            
-            // Core Logic for new structure:
-            // If match: turn ON matchIds, turn OFF noMatchIds
-            // If NOT match: turn OFF matchIds, turn ON noMatchIds
 
-            // Execute State Changes
-            const applyChanges = (ids, targetState) => {
-                ids.forEach(pId => {
-                    const entry = promptManager.getPromptOrderEntry(promptManager.activeCharacter, pId);
-                    if (entry) {
-                        if (entry.enabled !== targetState) {
-                            entry.enabled = targetState;
-                            changed = true;
-                            
-                            if (getNotificationsEnabled() && targetState === true) {
-                                const prompt = promptManager.getPromptById(pId);
-                                toastr.info(`開啟提示詞: ${prompt?.name || pId}`, 'Auto Prompt Toggler');
-                            }
-                        }
+            const queueChange = (ids, targetState, isMatchedAction) => {
+                const priority = getConflictPriority(meta, isMatchedAction);
+                ids.forEach(promptId => {
+                    const previous = pendingStates.get(promptId);
+                    if (!previous || priority >= previous.priority) {
+                        pendingStates.set(promptId, { targetState, priority });
                     }
                 });
             };
 
             if (isMatch) {
-                applyChanges(matchIds, true);
-                applyChanges(noMatchIds, false);
+                queueChange(matchIds, true, true);
+                queueChange(noMatchIds, false, true);
             } else {
-                applyChanges(matchIds, false);
-                applyChanges(noMatchIds, true);
+                queueChange(matchIds, false, false);
+                queueChange(noMatchIds, true, false);
             }
 
         } catch (e) {
             console.error('[AutoPromptToggler] Error processing rule:', e);
         }
     });
+
+    for (const [promptId, { targetState }] of pendingStates.entries()) {
+        const entry = getPromptOrderEntrySafe(promptId);
+        if (!entry || entry.enabled === targetState) continue;
+
+        entry.enabled = targetState;
+        changed = true;
+
+        if (getNotificationsEnabled() && targetState === true) {
+            const prompt = promptManager.getPromptById(promptId);
+            toastr.info(`開啟提示詞: ${prompt?.name || promptId}`, 'Auto Prompt Toggler');
+        }
+    }
 
     if (changed) {
         promptManager.saveServiceSettings();
@@ -936,6 +1154,10 @@ function extractMessageData(msgDiv, chatMsg) {
         }
     }
 
+    if (!displayText && rawText) {
+        displayText = rawText;
+    }
+
     return { type, rawText, displayText };
 }
 
@@ -949,35 +1171,15 @@ function initObserver() {
     if (chatObserver) chatObserver.disconnect();
 
     chatObserver = new MutationObserver((mutations) => {
-        const messages = chatContainer.querySelectorAll('.mes');
-        if (messages.length === 0) return;
-        
-        const msgIndex = messages.length - 1;
-        const currentMsgId = `msg-${msgIndex}`;
-
-        const recentMessages = [];
-        
+        if (!isChatCompletionApiActive()) return;
         const allRules = [
             ...getGlobalRules(),
             ...currentPresetRules
         ];
-        
-        let maxDepth = 1;
-        let checkAll = false;
-        
-        for (const rule of allRules) {
-            if (rule.depth === 0) checkAll = true;
-            if (rule.depth > maxDepth) maxDepth = rule.depth;
-        }
-        
-        const countToProcess = checkAll ? messages.length : Math.min(messages.length, maxDepth);
-        
-        for (let i = messages.length - countToProcess; i < messages.length; i++) {
-            const msgDiv = messages[i];
-            const chatMsg = (typeof chat !== 'undefined' && Array.isArray(chat) && i < chat.length) ? chat[i] : null;
-            const msgData = extractMessageData(msgDiv, chatMsg);
-            recentMessages.push(msgData);
-        }
+
+        const recentMessages = collectRecentMessagesForRules(allRules);
+
+        const currentMsgId = getLatestMessageId();
 
         if (currentMsgId !== lastMessageId) {
             lastMessageId = currentMsgId;
@@ -987,16 +1189,23 @@ function initObserver() {
     });
 
     chatObserver.observe(chatContainer, { 
-        childList: true, 
-        subtree: true, 
-        characterData: true 
+        childList: true,
+        subtree: false,
+        characterData: false
     });
     
     console.log("[AutoPromptToggler] Chat observer initialized.");
 }
 
 async function updatePresetState() {
-    const presetMgr = getPresetManager();
+    if (!isChatCompletionApiActive()) {
+        currentPresetRules = [];
+        currentPresetName = null;
+        renderRulesLists();
+        return;
+    }
+
+    const presetMgr = getOpenAiPresetManager();
     if (!presetMgr) {
         currentPresetRules = [];
         renderRulesLists();
@@ -1146,15 +1355,17 @@ jQuery(async () => {
 
     const settingsHtml = await renderExtensionTemplateAsync('third-party/APT-SillyTavern-Plugin', 'settings');
     $('#extensions_settings').append(settingsHtml);
-    $('#apt_language_select').val(getLanguage()).on('change', function() {
+    $('#apt_language_select').off('change.apt_i18n').val(getLanguage()).on('change.apt_i18n', function() {
         setLanguage($(this).val());
     });
     applyLanguageToSettings();
 
     // Notifications Init
-    $('#apt_enable_notifications').prop('checked', getNotificationsEnabled()).on('change', function() {
+    $('#apt_enable_notifications').off('change.apt_notifications').prop('checked', getNotificationsEnabled()).on('change.apt_notifications', function() {
         setNotificationsEnabled($(this).prop('checked'));
     });
+
+    $('#apt_controlled_prompt_search').off('input.apt_controlled').on('input.apt_controlled', () => renderControlledPromptSearch());
 
     // Ensure events are only bound once per reload by removing old handlers
     $(document).off('click.apt_global');
@@ -1261,7 +1472,7 @@ jQuery(async () => {
         const rules = getGlobalRules();
         const currentProfile = getCurrentGlobalProfileName();
         const json = JSON.stringify(rules, null, 4);
-        download(json, `auto_prompt_toggler_global_${currentProfile}.json`, 'application/json');
+        download(json, `auto_prompt_toggler_global_${sanitizeFileNamePart(currentProfile)}.json`, 'application/json');
     });
     $(document).on('click.apt_global', '#apt_global_import', () => {
         $('#apt_import_file_input').off('change'); // Remove previous handlers
@@ -1287,7 +1498,7 @@ jQuery(async () => {
     $(document).on('click.apt_preset', '#apt_preset_add_rule', () => openEditor('preset'));
     $(document).on('click.apt_preset', '#apt_preset_export', () => {
         const json = JSON.stringify(currentPresetRules, null, 4);
-        download(json, `auto_prompt_toggler_preset_${currentPresetName}.json`, 'application/json');
+        download(json, `auto_prompt_toggler_preset_${sanitizeFileNamePart(currentPresetName, 'preset')}.json`, 'application/json');
     });
     $(document).on('click.apt_preset', '#apt_preset_import', () => {
         $('#apt_import_file_input').off('change'); // Remove previous handlers
@@ -1369,7 +1580,7 @@ jQuery(async () => {
                         result.data.extensions.auto_prompt_toggler = { rules: importedRules };
                         toastr.success(`已從預設檔匯入 ${importedRules.length} 條 APT 規則`, 'Auto Prompt Toggler');
                     } else {
-                        // 使用者選擇捨棄，我們將資料從 result.data 移除，這樣存檔時就不會有規則
+                        // 使用者選擇捨棄，將資料從 result.data 移除，這樣存檔時就不會有規則
                         delete result.data.extensions.auto_prompt_toggler;
                         toastr.info('已捨棄預設檔附帶的 APT 規則', 'Auto Prompt Toggler');
                     }

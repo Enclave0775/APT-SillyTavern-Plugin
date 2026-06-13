@@ -55,6 +55,15 @@
                 <div style="font-style: italic; color: gray; text-align: center;">暫無 Preset 規則</div>
             </div>
 
+            <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <strong id="apt_controlled_prompt_search_label">搜尋受規則控制的提示詞</strong>
+            </div>
+            <div class="apt-controlled-search-panel">
+                <input type="search" id="apt_controlled_prompt_search" class="text_pole" placeholder="輸入提示詞名稱/ID 或規則名稱..." style="width: 100%; box-sizing: border-box;">
+                <small id="apt_controlled_prompt_hint" style="display: block; margin: 4px 0 8px; color: var(--SmartThemeQuoteColor);">搜尋範圍包含目前全域設定檔與目前 Preset 的所有規則。</small>
+                <div id="apt_controlled_prompt_results" class="apt-controlled-results"></div>
+            </div>
+
             <input type="file" id="apt_import_file_input" accept=".json" style="display: none;" />
             <div>
             <p data-apt-i18n="contact_text">對於插件有問題可聯絡提問</p>
