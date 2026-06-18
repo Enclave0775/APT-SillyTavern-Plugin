@@ -5,22 +5,109 @@
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <label for="apt_language_select" data-apt-i18n="language_label">介面語言</label>
-                <select id="apt_language_select" class="text_pole" style="width: auto; min-width: 130px;">
-                    <option value="zh-TW">繁體中文</option>
-                    <option value="zh-CN">简体中文</option>
-                    <option value="en">English</option>
-                </select>
+            <div class="inline-drawer apt-basic-settings-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <strong>設定</strong>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content apt-basic-settings-panel" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <label for="apt_language_select" data-apt-i18n="language_label">介面語言</label>
+                        <select id="apt_language_select" class="text_pole" style="width: auto; min-width: 130px;">
+                            <option value="zh-TW">繁體中文</option>
+                            <option value="zh-CN">简体中文</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+
+                    <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center;">
+                        <input type="checkbox" id="apt_enable_notifications" style="margin-right: 8px;">
+                        <label for="apt_enable_notifications" title="切換提示詞時顯示通知" data-apt-i18n="show_notifications" data-apt-i18n-title="show_notifications_title">顯示通知 (Show Notifications)</label>
+                    </div>
+                </div>
             </div>
 
-            <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center;">
-                <input type="checkbox" id="apt_enable_notifications" style="margin-right: 8px;">
-                <label for="apt_enable_notifications" title="切換提示詞時顯示通知" data-apt-i18n="show_notifications" data-apt-i18n-title="show_notifications_title">顯示通知 (Show Notifications)</label>
+            <div class="inline-drawer apt-llm-injector-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <strong>LLM 場景注入</strong>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+            <div class="inline-drawer-content apt-llm-injector-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                    <button id="apt_llm_injector_reset" class="menu_button" type="button" style="padding: 3px 8px;">重設</button>
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <input type="checkbox" id="apt_llm_injector_enabled">
+                    <span>啟用送出前 LLM 場景判斷，並把結果附加到使用者輸入後方</span>
+                </label>
+
+                <div style="display: grid; grid-template-columns: minmax(110px, 160px) 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <label for="apt_llm_injector_provider">LLM 供應商</label>
+                    <select id="apt_llm_injector_provider" class="text_pole">
+                        <option value="sillytavern">沿用 SillyTavern 目前主 API</option>
+                        <option value="openai_compatible">OpenAI 相容（自定義）</option>
+                        <option value="google_ai_studio">Google AI Studio / Gemini</option>
+                    </select>
+
+                    <input id="apt_llm_injector_api" type="hidden">
+
+
+                    <label for="apt_llm_injector_base_url" class="apt-llm-base-url-row">獨立 Base URL</label>
+                    <input id="apt_llm_injector_base_url" class="text_pole apt-llm-base-url-row" type="text" placeholder="例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1">
+
+                    <label for="apt_llm_injector_api_key" class="apt-llm-api-key-row">獨立 API Key</label>
+                    <input id="apt_llm_injector_api_key" class="text_pole apt-llm-api-key-row" type="password" autocomplete="off" placeholder="只給場景判斷用；沿用模式可留空">
+
+                    <label for="apt_llm_injector_model">獨立模型</label>
+                    <input id="apt_llm_injector_model" class="text_pole" type="text" placeholder="選填；OpenAI/chat completion 類型可填模型 ID，例如 gpt-4o-mini、openrouter/auto">
+
+                    <label for="apt_llm_injector_model_select">可用模型</label>
+                    <div style="display: flex; gap: 6px; align-items: center; min-width: 0;">
+                        <select id="apt_llm_injector_model_select" class="text_pole" style="flex: 1; min-width: 0;">
+                            <option value="">先拉取模型列表...</option>
+                        </select>
+                        <button id="apt_llm_injector_fetch_models" class="menu_button" type="button" style="padding: 3px 8px; white-space: nowrap;">拉取模型</button>
+                    </div>
+
+                    <label for="apt_llm_injector_response_length">回應長度</label>
+                    <input id="apt_llm_injector_response_length" class="text_pole" type="number" min="1" step="1">
+
+                    <label for="apt_llm_injector_recent_count">最近對話則數</label>
+                    <input id="apt_llm_injector_recent_count" class="text_pole" type="number" min="0" step="1">
+                </div>
+
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <input type="checkbox" id="apt_llm_injector_include_user">
+                    <span>需要使用者輸入非空才執行</span>
+                </label>
+
+                <label for="apt_llm_injector_system_prompt" style="display: block; margin-top: 8px;">分類器 System Prompt</label>
+                <textarea id="apt_llm_injector_system_prompt" class="text_pole textarea_compact" rows="3" style="width: 100%; box-sizing: border-box; max-height: 120px;"></textarea>
+
+                <label for="apt_llm_injector_prompt_template" style="display: block; margin-top: 8px;">分類提示詞模板</label>
+                <textarea id="apt_llm_injector_prompt_template" class="text_pole textarea_compact" rows="4" style="width: 100%; box-sizing: border-box; max-height: 160px;"></textarea>
+
+                <label for="apt_llm_injector_injection_template" style="display: block; margin-top: 8px;">附加到輸入後方的模板</label>
+                <textarea id="apt_llm_injector_injection_template" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;"></textarea>
+                <small style="display: block; margin-top: 6px; color: var(--SmartThemeQuoteColor);">
+                    可用變數：<code>{{userInput}}</code>、<code>{{recentMessages}}</code>、<code>{{result}}</code>。預設會附加 <code>[APT_SCENE: 標籤]</code>，你可以建立 APT 規則偵測這段文字來觸發提示詞條目。<br>
+                    「LLM 供應商」可選：沿用 SillyTavern、OpenAI 相容自定義、Google AI Studio / Gemini。<br>
+                    OpenAI 相容模式會呼叫 <code>{Base URL}/chat/completions</code> 與 <code>{Base URL}/models</code>；Google AI Studio 會呼叫 Gemini <code>generateContent</code> 與 <code>/models</code>。<br>
+                    按「拉取模型」會依照選擇的供應商取得模型列表，並可一鍵回填到「獨立模型」。<br>
+                    注意：插件內 Key 會存在前端擴充設定中；若你不想把 Key 存在插件，請留空並使用 SillyTavern 原本的 API Key 管理。<br>
+                    「獨立模型」只會在場景判斷這次背景呼叫期間暫時覆寫 OpenAI/chat completion 來源的模型設定，完成後會恢復原本聊天模型。
+                </small>
+            </div>
             </div>
             
+            <div class="inline-drawer apt-rules-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <strong>規則管理</strong>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content apt-rules-panel" style="width: 100%; padding: 8px; box-sizing: border-box;">
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 5px;">
-                <strong>全域規則 (Global Rules)</strong>
+                <strong id="apt_global_rules_title">全域規則 (Global Rules)</strong>
                 <div style="display: flex; gap: 4px; align-items: center; background-color: var(--background-color-secondary); padding: 4px; border-radius: 5px; border: 1px solid var(--border-color); flex-wrap: wrap;">
                     <i class="fa-solid fa-folder" style="color: var(--smart-theme-color); font-size: 0.9em; margin-left: 2px;" title="設定檔"></i>
                     <select id="apt_global_profile_select" class="text_pole" style="min-width: 100px; max-width: 140px; padding: 2px 5px; font-size: 0.85em; height: 24px; border-radius: 3px; border: 1px solid var(--border-color);">
@@ -43,7 +130,7 @@
             </div>
 
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                <strong>Preset 規則 (綁定當前提示詞預設)</strong>
+                <strong id="apt_preset_rules_title">Preset 規則 (綁定當前提示詞預設)</strong>
                 <div style="display: flex; gap: 5px;">
                     <div id="apt_preset_add_rule" class="menu_button fa-solid fa-plus" title="新增 Preset 規則" style="padding: 5px;"></div>
                     <div id="apt_preset_import" class="menu_button fa-solid fa-file-import" title="匯入 Preset 規則" style="padding: 5px;"></div>
@@ -62,6 +149,15 @@
                 <input type="search" id="apt_controlled_prompt_search" class="text_pole" placeholder="輸入提示詞名稱/ID 或規則名稱..." style="width: 100%; box-sizing: border-box;">
                 <small id="apt_controlled_prompt_hint" style="display: block; margin: 4px 0 8px; color: var(--SmartThemeQuoteColor);">搜尋範圍包含目前全域設定檔與目前 Preset 的所有規則。</small>
                 <div id="apt_controlled_prompt_results" class="apt-controlled-results"></div>
+            </div>
+
+            <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <strong id="apt_rule_debug_title">最近一次規則判定狀態</strong>
+            </div>
+            <div id="apt_rule_debug_panel" class="apt-rule-debug-panel">
+                <div class="apt-rule-debug-empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>
+            </div>
+                </div>
             </div>
 
             <input type="file" id="apt_import_file_input" accept=".json" style="display: none;" />

@@ -1,6 +1,6 @@
-import { chat, eventSource, event_types, main_api, saveSettingsDebounced } from '../../../../script.js';
+import { chat, eventSource, event_types, generateRaw, getRequestHeaders, main_api, saveSettingsDebounced } from '../../../../script.js';
 import { extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
-import { promptManager } from '../../../openai.js';
+import { model_list, oai_settings, promptManager } from '../../../openai.js';
 import { download, getFileText, escapeHtml } from '../../../utils.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 import { getPresetManager } from '../../../preset-manager.js';
@@ -9,6 +9,52 @@ const SETTINGS_KEY_GLOBAL = 'auto_prompt_toggler_global'; // Now a dictionary: {
 const SETTINGS_KEY_GLOBAL_PROFILE = 'auto_prompt_toggler_global_current_profile';
 const SETTINGS_KEY_NOTIFICATIONS = 'auto_prompt_toggler_notifications';
 const SETTINGS_KEY_LANGUAGE = 'auto_prompt_toggler_language';
+const SETTINGS_KEY_LLM_INJECTOR = 'auto_prompt_toggler_llm_injector';
+
+const DEFAULT_LLM_INJECTOR_SETTINGS = {
+    enabled: false,
+    provider: 'sillytavern',
+    api: '',
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    modelOptions: [],
+    responseLength: 80,
+    includeRecentMessages: 6,
+    includeUserInput: true,
+    systemPrompt: '你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。',
+    promptTemplate: `請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`,
+    injectionTemplate: '\n\n[APT_SCENE: {{result}}]',
+};
+
+let llmInjectorBusy = false;
+
+const LLM_INJECTOR_MODEL_SETTING_KEYS = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    custom: 'custom_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    chutes: 'chutes_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    zai: 'zai_model',
+};
 
 const APT_LANGUAGES = {
     'zh-TW': {
@@ -46,12 +92,14 @@ const APT_LANGUAGES = {
 let chatObserver = null;
 let lastMessageId = null;
 let processTimeout = null;
+let lastRuleDebugState = null;
 const regexCache = new Map();
 const invalidRegexWarnings = new Set();
 
 // Preset rules state
 let currentPresetName = null;
 let currentPresetRules = [];
+let currentPresetLlmInjectorSettings = null;
 
 function getLanguage() {
     const lang = extension_settings[SETTINGS_KEY_LANGUAGE];
@@ -89,8 +137,8 @@ function applyLanguageToSettings() {
     root.find('.inline-drawer-header b').text(t('header'));
     $('#apt_language_select').val(getLanguage());
     applyI18n(root);
-    root.find('.apt-section-header strong').eq(0).text(t('global_rules'));
-    root.find('.apt-section-header strong').eq(1).text(t('preset_rules'));
+    root.find('.apt-section-header strong').eq(1).text(t('global_rules'));
+    root.find('.apt-section-header strong').eq(2).text(t('preset_rules'));
     root.find('.fa-folder').attr('title', t('profile'));
     $('#apt_global_profile_add').attr('title', t('add_profile'));
     $('#apt_global_profile_rename').attr('title', t('rename_profile'));
@@ -447,10 +495,23 @@ async function savePresetRules() {
     if (!currentPresetName) return;
 
     try {
+        let aptExt = null;
+        try {
+            aptExt = presetMgr.readPresetExtensionField({
+                name: currentPresetName,
+                path: 'auto_prompt_toggler',
+            });
+        } catch (e) {
+            console.warn('[APT] Could not read preset extension field before saving rules:', e);
+        }
+
+        const nextExt = aptExt && typeof aptExt === 'object' && !Array.isArray(aptExt) ? { ...aptExt } : {};
+        nextExt.rules = currentPresetRules;
+
         await presetMgr.writePresetExtensionField({
             name: currentPresetName,
             path: 'auto_prompt_toggler',
-            value: { rules: currentPresetRules },
+            value: nextExt,
         });
         console.log('[APT] Preset rules saved to file successfully.');
         clearRuleCaches();
@@ -468,6 +529,531 @@ function getNotificationsEnabled() {
 function setNotificationsEnabled(enabled) {
     extension_settings[SETTINGS_KEY_NOTIFICATIONS] = enabled;
     saveSettingsDebounced();
+}
+
+function getLlmInjectorSettings() {
+    const current = extension_settings[SETTINGS_KEY_LLM_INJECTOR];
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+        saveSettingsDebounced();
+    } else {
+        const migratedProvider = current.provider || (current.baseUrl || current.apiKey ? 'openai_compatible' : DEFAULT_LLM_INJECTOR_SETTINGS.provider);
+        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = {
+            ...DEFAULT_LLM_INJECTOR_SETTINGS,
+            ...current,
+            provider: migratedProvider,
+        };
+    }
+    return extension_settings[SETTINGS_KEY_LLM_INJECTOR];
+}
+
+function normalizeLlmInjectorSettings(settings) {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null;
+
+    const migratedProvider = settings.provider || (settings.baseUrl || settings.apiKey ? 'openai_compatible' : undefined);
+    return {
+        ...settings,
+        ...(migratedProvider ? { provider: migratedProvider } : {}),
+    };
+}
+
+function getEffectiveLlmInjectorSettings() {
+    const globalSettings = getLlmInjectorSettings();
+    const presetSettings = normalizeLlmInjectorSettings(currentPresetLlmInjectorSettings);
+    if (!presetSettings) return globalSettings;
+
+    return {
+        ...globalSettings,
+        ...presetSettings,
+    };
+}
+
+function shouldSaveLlmInjectorSettingsToPreset() {
+    return isChatCompletionApiActive()
+        && !!currentPresetName
+        && !!currentPresetLlmInjectorSettings
+        && typeof currentPresetLlmInjectorSettings === 'object'
+        && !Array.isArray(currentPresetLlmInjectorSettings);
+}
+
+async function savePresetLlmInjectorSettings(settings) {
+    const presetMgr = getOpenAiPresetManager();
+    if (!presetMgr || !currentPresetName) return;
+
+    try {
+        let aptExt = null;
+        try {
+            aptExt = presetMgr.readPresetExtensionField({
+                name: currentPresetName,
+                path: 'auto_prompt_toggler',
+            });
+        } catch (e) {
+            console.warn('[APT] Could not read preset extension field before saving LLM injector settings:', e);
+        }
+
+        const nextExt = aptExt && typeof aptExt === 'object' && !Array.isArray(aptExt) ? { ...aptExt } : {};
+        nextExt.rules = currentPresetRules;
+        nextExt.llmInjector = settings;
+
+        await presetMgr.writePresetExtensionField({
+            name: currentPresetName,
+            path: 'auto_prompt_toggler',
+            value: nextExt,
+        });
+    } catch (e) {
+        console.error('[APT] Error saving preset LLM injector settings to file:', e);
+        toastr.error('儲存 Preset LLM 場景注入設定失敗', 'Auto Prompt Toggler');
+    }
+}
+
+function saveLlmInjectorSettings(patch = {}) {
+    if (shouldSaveLlmInjectorSettingsToPreset()) {
+        currentPresetLlmInjectorSettings = {
+            ...getEffectiveLlmInjectorSettings(),
+            ...patch,
+        };
+        savePresetLlmInjectorSettings(currentPresetLlmInjectorSettings);
+        return;
+    }
+
+    extension_settings[SETTINGS_KEY_LLM_INJECTOR] = {
+        ...getLlmInjectorSettings(),
+        ...patch,
+    };
+    saveSettingsDebounced();
+}
+
+function renderLlmInjectorSettings() {
+    const settings = getEffectiveLlmInjectorSettings();
+    $('#apt_llm_injector_enabled').prop('checked', !!settings.enabled);
+    const provider = settings.provider || (settings.baseUrl || settings.apiKey ? 'openai_compatible' : 'sillytavern');
+    $('#apt_llm_injector_provider').val(provider);
+    $('#apt_llm_injector_api').val(settings.api || '');
+    $('#apt_llm_injector_base_url').val(settings.baseUrl || '');
+    $('#apt_llm_injector_api_key').val(settings.apiKey || '');
+    $('#apt_llm_injector_model').val(settings.model || '');
+    renderLlmInjectorModelOptions(settings.modelOptions || [], settings.model || '');
+    $('#apt_llm_injector_response_length').val(settings.responseLength ?? DEFAULT_LLM_INJECTOR_SETTINGS.responseLength);
+    $('#apt_llm_injector_recent_count').val(settings.includeRecentMessages ?? DEFAULT_LLM_INJECTOR_SETTINGS.includeRecentMessages);
+    $('#apt_llm_injector_include_user').prop('checked', settings.includeUserInput !== false);
+    $('#apt_llm_injector_system_prompt').val(settings.systemPrompt || '');
+    $('#apt_llm_injector_prompt_template').val(settings.promptTemplate || '');
+    $('#apt_llm_injector_injection_template').val(settings.injectionTemplate || DEFAULT_LLM_INJECTOR_SETTINGS.injectionTemplate);
+    updateLlmInjectorProviderUi();
+}
+
+function renderLlmInjectorModelOptions(models = [], selectedModel = '') {
+    const select = $('#apt_llm_injector_model_select');
+    if (!select.length) return;
+
+    select.empty();
+    select.append(new Option(models.length ? '選擇模型以回填...' : '先拉取模型列表...', ''));
+
+    const uniqueModels = [...new Set((Array.isArray(models) ? models : [])
+        .map(model => typeof model === 'string' ? model : model?.id)
+        .filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b)));
+
+    for (const id of uniqueModels) {
+        select.append(new Option(id, id));
+    }
+
+    if (selectedModel && uniqueModels.includes(selectedModel)) {
+        select.val(selectedModel);
+    } else {
+        select.val('');
+    }
+}
+
+function bindLlmInjectorSettings() {
+    const bindSave = (selector, getter) => {
+        $(selector).off('change.apt_llm input.apt_llm').on('change.apt_llm input.apt_llm', function() {
+            saveLlmInjectorSettings(getter($(this)));
+        });
+    };
+
+    bindSave('#apt_llm_injector_enabled', el => ({ enabled: el.prop('checked') }));
+    bindSave('#apt_llm_injector_provider', el => {
+        const provider = String(el.val() || 'sillytavern');
+        const patch = { provider };
+        if (provider === 'google_ai_studio' && !String($('#apt_llm_injector_base_url').val() || '').trim()) {
+            patch.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+        }
+        saveLlmInjectorSettings(patch);
+        if (patch.baseUrl) $('#apt_llm_injector_base_url').val(patch.baseUrl);
+        updateLlmInjectorProviderUi();
+        return {};
+    });
+    bindSave('#apt_llm_injector_api', el => ({ api: String(el.val() || '').trim() }));
+    bindSave('#apt_llm_injector_base_url', el => ({ baseUrl: String(el.val() || '').trim() }));
+    bindSave('#apt_llm_injector_api_key', el => ({ apiKey: String(el.val() || '').trim() }));
+    bindSave('#apt_llm_injector_model', el => ({ model: String(el.val() || '').trim() }));
+    bindSave('#apt_llm_injector_response_length', el => ({ responseLength: Math.max(1, Number.parseInt(el.val(), 10) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength) }));
+    bindSave('#apt_llm_injector_recent_count', el => ({ includeRecentMessages: Math.max(0, Number.parseInt(el.val(), 10) || 0) }));
+    bindSave('#apt_llm_injector_include_user', el => ({ includeUserInput: el.prop('checked') }));
+    bindSave('#apt_llm_injector_system_prompt', el => ({ systemPrompt: String(el.val() || '') }));
+    bindSave('#apt_llm_injector_prompt_template', el => ({ promptTemplate: String(el.val() || '') }));
+    bindSave('#apt_llm_injector_injection_template', el => ({ injectionTemplate: String(el.val() || '') }));
+
+    $('#apt_llm_injector_model_select').off('change.apt_llm').on('change.apt_llm', function() {
+        const model = String($(this).val() || '').trim();
+        if (!model) return;
+        $('#apt_llm_injector_model').val(model).trigger('input');
+        saveLlmInjectorSettings({ model });
+    });
+
+    $('#apt_llm_injector_fetch_models').off('click.apt_llm').on('click.apt_llm', async () => {
+        const button = $('#apt_llm_injector_fetch_models');
+        button.prop('disabled', true).text('拉取中...');
+        try {
+            const models = await fetchLlmInjectorModels(getEffectiveLlmInjectorSettings());
+            saveLlmInjectorSettings({ modelOptions: models });
+            renderLlmInjectorModelOptions(models, getEffectiveLlmInjectorSettings().model || '');
+            toastr.success(`已拉取 ${models.length} 個模型`, 'Auto Prompt Toggler');
+        } catch (e) {
+            console.error('[APT] Failed to fetch LLM injector models:', e);
+            toastr.error(`拉取模型失敗: ${e.message || e}`, 'Auto Prompt Toggler');
+        } finally {
+            button.prop('disabled', false).text('拉取模型');
+        }
+    });
+
+    $('#apt_llm_injector_reset').off('click.apt_llm').on('click.apt_llm', () => {
+        if (shouldSaveLlmInjectorSettingsToPreset()) {
+            currentPresetLlmInjectorSettings = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+            savePresetLlmInjectorSettings(currentPresetLlmInjectorSettings);
+            renderLlmInjectorSettings();
+            toastr.info('已重設目前 Preset 的 LLM 場景注入設定', 'Auto Prompt Toggler');
+            return;
+        }
+
+        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+        saveSettingsDebounced();
+        renderLlmInjectorSettings();
+        toastr.info('已重設 LLM 場景注入設定', 'Auto Prompt Toggler');
+    });
+}
+
+function trimLlmInjectorBaseUrl(baseUrl) {
+    return String(baseUrl || '').trim().replace(/\/+$/, '');
+}
+
+function getLlmInjectorProvider(settings = getLlmInjectorSettings()) {
+    const provider = String(settings?.provider || '').trim();
+    if (provider) return provider;
+    return trimLlmInjectorBaseUrl(settings?.baseUrl) || String(settings?.apiKey || '').trim() ? 'openai_compatible' : 'sillytavern';
+}
+
+function getLlmInjectorSource(settings = getLlmInjectorSettings()) {
+    return String(settings.api || '').trim() || oai_settings?.chat_completion_source || main_api;
+}
+
+function hasDirectLlmInjectorConnection(settings) {
+    const provider = getLlmInjectorProvider(settings);
+    const apiKey = String(settings?.apiKey || '').trim();
+    if (provider === 'google_ai_studio') return !!apiKey;
+    if (provider === 'openai_compatible') return !!apiKey && !!trimLlmInjectorBaseUrl(settings?.baseUrl);
+    return false;
+}
+
+function getGoogleAiStudioBaseUrl(settings) {
+    return trimLlmInjectorBaseUrl(settings?.baseUrl) || 'https://generativelanguage.googleapis.com/v1beta';
+}
+
+function updateLlmInjectorProviderUi() {
+    const settings = getEffectiveLlmInjectorSettings();
+    const provider = String($('#apt_llm_injector_provider').val() || '').trim() || getLlmInjectorProvider(settings);
+    const direct = provider !== 'sillytavern';
+    const google = provider === 'google_ai_studio';
+    $('.apt-llm-provider-api-row').toggle(provider === 'sillytavern');
+    $('.apt-llm-base-url-row').toggle(direct);
+    $('.apt-llm-api-key-row').toggle(direct);
+    $('#apt_llm_injector_base_url').attr('placeholder', google
+        ? '選填；預設 https://generativelanguage.googleapis.com/v1beta'
+        : '例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1');
+    $('#apt_llm_injector_model').attr('placeholder', google
+        ? '例如 gemini-1.5-flash、gemini-2.0-flash'
+        : '例如 gpt-4o-mini、openrouter/auto、你的自定義模型 ID');
+}
+
+function getDirectLlmInjectorHeaders(settings) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${String(settings.apiKey || '').trim()}`,
+    };
+
+    const source = getLlmInjectorSource(settings);
+    if (source === 'openrouter' || trimLlmInjectorBaseUrl(settings.baseUrl).includes('openrouter.ai')) {
+        headers['HTTP-Referer'] = location.origin;
+        headers['X-Title'] = 'SillyTavern APT Scene Injector';
+    }
+
+    return headers;
+}
+
+function formatRecentMessagesForLlmInjector(limit) {
+    if (!Array.isArray(chat) || limit <= 0) return '';
+    return chat.slice(-limit).map((message) => {
+        const role = message?.is_user ? 'User' : (message?.is_system ? 'System' : 'Assistant');
+        return `${role}: ${String(message?.mes || '').trim()}`;
+    }).filter(Boolean).join('\n');
+}
+
+function applyLlmInjectorTemplate(template, values) {
+    return String(template || '').replace(/{{\s*(userInput|recentMessages|result)\s*}}/g, (_, key) => values[key] ?? '');
+}
+
+function normalizeLlmInjectorResult(text) {
+    const normalized = String(text || '')
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .join('\n')
+        .replace(/^[-*"'`\s]+|[-*"'`\s]+$/g, '');
+
+    return normalized.slice(0, 1000);
+}
+
+function getLlmInjectorModelSettingKeys(api) {
+    const key = LLM_INJECTOR_MODEL_SETTING_KEYS[String(api || '').trim()];
+    return key ? [key] : [];
+}
+
+function getLlmInjectorStatusRequestBody(source) {
+    const data = {
+        reverse_proxy: oai_settings.reverse_proxy,
+        proxy_password: oai_settings.proxy_password,
+        chat_completion_source: source,
+    };
+
+    if (source === 'custom') {
+        data.custom_url = oai_settings.custom_url;
+        data.custom_include_headers = oai_settings.custom_include_headers;
+    }
+
+    if (source === 'azure_openai') {
+        data.azure_base_url = oai_settings.azure_base_url;
+        data.azure_deployment_name = oai_settings.azure_deployment_name;
+        data.azure_api_version = oai_settings.azure_api_version;
+    }
+
+    if (source === 'siliconflow') {
+        data.siliconflow_endpoint = oai_settings.siliconflow_endpoint;
+    }
+
+    return data;
+}
+
+function normalizeLlmInjectorModelList(models) {
+    return [...new Set((Array.isArray(models) ? models : [])
+        .map(model => typeof model === 'string' ? model : model?.id)
+        .filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+async function fetchLlmInjectorModels(settings) {
+    if (hasDirectLlmInjectorConnection(settings)) {
+        if (getLlmInjectorProvider(settings) === 'google_ai_studio') {
+            const baseUrl = getGoogleAiStudioBaseUrl(settings);
+            const apiKey = encodeURIComponent(String(settings.apiKey || '').trim());
+            const response = await fetch(`${baseUrl}/models?key=${apiKey}`, { method: 'GET', cache: 'no-cache' });
+            if (!response.ok) throw new Error(await response.text().catch(() => '') || response.statusText || `HTTP ${response.status}`);
+            const data = await response.json();
+            const googleModels = normalizeLlmInjectorModelList((data?.models || []).map(model => String(model?.name || model?.id || '').replace(/^models\//, '')));
+            if (googleModels.length > 0) return googleModels;
+            throw new Error('Google AI Studio 沒有回傳可用模型列表');
+        }
+
+        const baseUrl = trimLlmInjectorBaseUrl(settings.baseUrl);
+        const response = await fetch(`${baseUrl}/models`, {
+            method: 'GET',
+            headers: getDirectLlmInjectorHeaders(settings),
+            cache: 'no-cache',
+        });
+
+        if (!response.ok) {
+            throw new Error(response.statusText || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const directModels = normalizeLlmInjectorModelList(data?.data || data?.models || data);
+        if (directModels.length > 0) return directModels;
+        throw new Error('獨立端點沒有回傳可用模型列表');
+    }
+
+    const source = getLlmInjectorSource(settings);
+    const response = await fetch('/api/backends/chat-completions/status', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify(getLlmInjectorStatusRequestBody(source)),
+        cache: 'no-cache',
+    });
+
+    if (!response.ok) {
+        throw new Error(response.statusText || `HTTP ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    if (responseData?.error) {
+        throw new Error(responseData.error.message || responseData.error || '後端回傳錯誤');
+    }
+
+    const fetchedModels = normalizeLlmInjectorModelList(responseData?.data);
+    if (fetchedModels.length > 0) {
+        return fetchedModels;
+    }
+
+    const fallbackModels = normalizeLlmInjectorModelList(model_list);
+    if (fallbackModels.length > 0) {
+        return fallbackModels;
+    }
+
+    throw new Error('沒有取得可用模型列表；請確認 API 金鑰/反代/端點設定是否已連線');
+}
+
+async function generateGoogleAiStudioLlmInjector(settings, prompt) {
+    const model = String(settings.model || '').trim();
+    if (!model) throw new Error('使用 Google AI Studio 時必須指定模型');
+
+    const baseUrl = getGoogleAiStudioBaseUrl(settings);
+    const apiKey = encodeURIComponent(String(settings.apiKey || '').trim());
+    const body = {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+            maxOutputTokens: Number(settings.responseLength) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength,
+            temperature: 0,
+        },
+    };
+    if (settings.systemPrompt) {
+        body.systemInstruction = { parts: [{ text: String(settings.systemPrompt) }] };
+    }
+
+    const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        cache: 'no-cache',
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || response.statusText || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
+    if (!content) throw new Error('Google AI Studio 沒有回傳文字內容');
+    return content;
+}
+
+async function generateDirectLlmInjector(settings, prompt) {
+    if (getLlmInjectorProvider(settings) === 'google_ai_studio') {
+        return generateGoogleAiStudioLlmInjector(settings, prompt);
+    }
+
+    const baseUrl = trimLlmInjectorBaseUrl(settings.baseUrl);
+    const model = String(settings.model || '').trim();
+    if (!model) {
+        throw new Error('使用 OpenAI 相容自定義 API 時必須指定模型');
+    }
+
+    const messages = [];
+    if (settings.systemPrompt) {
+        messages.push({ role: 'system', content: String(settings.systemPrompt) });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: getDirectLlmInjectorHeaders(settings),
+        body: JSON.stringify({
+            model,
+            messages,
+            max_tokens: Number(settings.responseLength) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength,
+            temperature: 0,
+            stream: false,
+        }),
+        cache: 'no-cache',
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || response.statusText || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? '';
+    if (!content) {
+        throw new Error('獨立 LLM 沒有回傳文字內容');
+    }
+    return content;
+}
+
+async function generateRawForLlmInjector(settings, prompt) {
+    if (hasDirectLlmInjectorConnection(settings)) {
+        return generateDirectLlmInjector(settings, prompt);
+    }
+
+    const api = String(settings.api || '').trim();
+    const model = String(settings.model || '').trim();
+    const modelSettingKeys = model ? getLlmInjectorModelSettingKeys(api || oai_settings?.chat_completion_source || main_api) : [];
+    const previousValues = new Map();
+
+    try {
+        for (const key of modelSettingKeys) {
+            previousValues.set(key, oai_settings?.[key]);
+            oai_settings[key] = model;
+        }
+
+        return await generateRaw({
+            prompt,
+            api: api || null,
+            systemPrompt: settings.systemPrompt || '',
+            responseLength: Number(settings.responseLength) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength,
+        });
+    } finally {
+        for (const [key, value] of previousValues.entries()) {
+            oai_settings[key] = value;
+        }
+    }
+}
+
+async function onGenerationAfterCommandsForLlmInjector(type, generationOptions = {}, dryRun = false) {
+    const settings = getEffectiveLlmInjectorSettings();
+    if (!settings.enabled || dryRun || llmInjectorBusy) return;
+    if (type && ![undefined, 'normal'].includes(type)) return;
+    if (generationOptions?.automatic_trigger || generationOptions?.quiet_prompt || generationOptions?.depth) return;
+
+    const textarea = $('#send_textarea');
+    if (!textarea.length) return;
+
+    const userInput = String(textarea.val() || '');
+    if (settings.includeUserInput !== false && !userInput.trim()) return;
+    if (userInput.includes('[APT_SCENE:')) return;
+
+    llmInjectorBusy = true;
+    const toast = toastr.info('正在判斷場景類型...', 'Auto Prompt Toggler');
+    try {
+        const prompt = applyLlmInjectorTemplate(settings.promptTemplate, {
+            userInput,
+            recentMessages: formatRecentMessagesForLlmInjector(Number(settings.includeRecentMessages) || 0),
+        });
+        const rawResult = await generateRawForLlmInjector(settings, prompt);
+        const result = normalizeLlmInjectorResult(rawResult);
+        if (!result) return;
+
+        const injection = applyLlmInjectorTemplate(settings.injectionTemplate, { result, userInput, recentMessages: '' });
+        textarea.val(`${userInput}${injection}`)[0].dispatchEvent(new Event('input', { bubbles: true }));
+        if (getNotificationsEnabled()) toastr.success(`場景判斷: ${result}`, 'Auto Prompt Toggler');
+        forceRecheck();
+    } catch (e) {
+        console.error('[APT] LLM scene injector failed:', e);
+        toastr.error(`LLM 場景注入失敗: ${e.message || e}`, 'Auto Prompt Toggler');
+    } finally {
+        toastr.clear(toast);
+        llmInjectorBusy = false;
+    }
 }
 
 function getAvailablePrompts() {
@@ -620,6 +1206,75 @@ function renderControlledPromptSearch() {
                 <div class="apt-controlled-controls"><strong>${escapeHtml(t('controlled_by'))}:</strong>${controlsHtml}</div>
             </div>
         `);
+    }
+}
+
+function getPromptDebugName(promptId) {
+    const prompt = promptManager?.getPromptById?.(promptId);
+    return prompt?.name || prompt?.identifier || promptId;
+}
+
+function getRuleDebugName(meta) {
+    return meta.rule?.name || getRuleConditionSummary(meta.rule) || meta.id;
+}
+
+function getRuleDebugStatusClass(record) {
+    if (record.invalid) return 'apt-rule-debug-invalid';
+    return record.matched ? 'apt-rule-debug-match' : 'apt-rule-debug-nomatch';
+}
+
+function renderRuleDebugStatus() {
+    const panel = $('#apt_rule_debug_panel');
+    if (!panel.length) return;
+
+    panel.empty();
+    if (!lastRuleDebugState) {
+        panel.append('<div class="apt-rule-debug-empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>');
+        return;
+    }
+
+    const state = lastRuleDebugState;
+    panel.append(`
+        <div class="apt-rule-debug-meta">
+            <div><strong>檢查時間：</strong>${escapeHtml(state.checkedAt || '')}</div>
+            <div><strong>檢查訊息：</strong>${Number(state.messageCount || 0)} 則；<strong>有效規則：</strong>${Number(state.evaluatedCount || 0)} 條；<strong>命中：</strong>${Number(state.matchedCount || 0)} 條；<strong>Prompt 變更：</strong>${Number(state.changedCount || 0)} 個</div>
+            ${state.note ? `<div>${escapeHtml(state.note)}</div>` : ''}
+        </div>
+    `);
+
+    const matchedRules = (state.rules || []).filter(record => record.matched || record.invalid);
+    panel.append('<div class="apt-rule-debug-section"><strong>規則命中 / 異常</strong></div>');
+    if (matchedRules.length === 0) {
+        panel.append('<div class="apt-rule-debug-empty">沒有規則命中，也沒有 Regex 異常。</div>');
+    } else {
+        matchedRules.forEach(record => {
+            const statusText = record.invalid ? 'Regex 異常，已略過' : '命中';
+            panel.append(`
+                <div class="apt-rule-debug-row ${getRuleDebugStatusClass(record)}">
+                    <div><strong>${escapeHtml(statusText)}</strong>｜${escapeHtml(record.scopeLabel)}｜${escapeHtml(record.ruleName)}</div>
+                    <div class="apt-rule-debug-small">條件：${escapeHtml(record.conditionSummary)}</div>
+                    ${record.matchedText ? `<div class="apt-rule-debug-small">命中文字：${escapeHtml(record.matchedText)}</div>` : ''}
+                </div>
+            `);
+        });
+    }
+
+    panel.append('<div class="apt-rule-debug-section"><strong>Prompt 切換結果</strong></div>');
+    const actions = state.promptActions || [];
+    if (actions.length === 0) {
+        panel.append('<div class="apt-rule-debug-empty">沒有任何 prompt 需要切換或維持狀態。</div>');
+    } else {
+        actions.forEach(action => {
+            const stateClass = action.targetState ? 'apt-rule-debug-prompt-on' : 'apt-rule-debug-prompt-off';
+            const stateText = action.targetState ? 'ON' : 'OFF';
+            const changedText = action.changed ? '已變更' : '已是目標狀態';
+            panel.append(`
+                <div class="apt-rule-debug-row">
+                    <div><span class="${stateClass}">${stateText}</span>｜${escapeHtml(action.promptName)} <span class="apt-rule-debug-small">(${escapeHtml(action.promptId)})</span></div>
+                    <div class="apt-rule-debug-small">${escapeHtml(changedText)}；來源：${escapeHtml(action.sourceRule || '')}</div>
+                </div>
+            `);
+        });
     }
 }
 
@@ -1013,6 +1668,7 @@ function renderRulesLists() {
     renderSingleList(getGlobalRules(), 'apt_global_rules_list', 'global');
     renderSingleList(currentPresetRules, 'apt_preset_rules_list', 'preset');
     renderControlledPromptSearch();
+    renderRuleDebugStatus();
     applyLanguageToSettings();
 }
 
@@ -1024,10 +1680,24 @@ function debouncedProcessText(recentMessages) {
 }
 
 function processText(recentMessages) {
-    if (!isChatCompletionApiActive()) return;
+    if (!isChatCompletionApiActive()) {
+        lastRuleDebugState = {
+            checkedAt: new Date().toLocaleString(),
+            messageCount: Array.isArray(recentMessages) ? recentMessages.length : 0,
+            evaluatedCount: 0,
+            matchedCount: 0,
+            changedCount: 0,
+            note: '目前不是 Chat Completion / OpenAI 類型 API，APT 未執行規則判定。',
+            rules: [],
+            promptActions: [],
+        };
+        renderRuleDebugStatus();
+        return;
+    }
 
     const allRules = getAllRulesWithMeta();
     const pendingStates = new Map();
+    const ruleDebugRecords = [];
     let changed = false;
 
     allRules.forEach((meta) => {
@@ -1039,6 +1709,17 @@ function processText(recentMessages) {
         const { matchIds, noMatchIds } = getRulePromptIds(rule);
         
         if (matchIds.length === 0 && noMatchIds.length === 0) return;
+
+        const ruleDebugRecord = {
+            id: ruleId,
+            scopeLabel: meta.scopeLabel,
+            ruleName: getRuleDebugName(meta),
+            conditionSummary: getRuleConditionSummary(rule),
+            matched: false,
+            invalid: false,
+            matchedText: '',
+        };
+        ruleDebugRecords.push(ruleDebugRecord);
 
         // Determine how many messages to check based on rule depth
         const depth = rule.depth !== undefined ? rule.depth : 1;
@@ -1069,9 +1750,13 @@ function processText(recentMessages) {
             }
             if (matchResult === true) {
                 isMatch = true;
+                ruleDebugRecord.matchedText = String(textToUse || '').slice(0, 240);
                 break; // Found a match, no need to check older messages for this rule
             }
         }
+
+        ruleDebugRecord.matched = isMatch;
+        ruleDebugRecord.invalid = invalidRule;
 
         if (invalidRule) return;
 
@@ -1083,7 +1768,7 @@ function processText(recentMessages) {
                 ids.forEach(promptId => {
                     const previous = pendingStates.get(promptId);
                     if (!previous || priority >= previous.priority) {
-                        pendingStates.set(promptId, { targetState, priority });
+                        pendingStates.set(promptId, { targetState, priority, sourceRule: `${meta.scopeLabel}｜${getRuleDebugName(meta)}` });
                     }
                 });
             };
@@ -1101,11 +1786,23 @@ function processText(recentMessages) {
         }
     });
 
-    for (const [promptId, { targetState }] of pendingStates.entries()) {
+    const promptActions = [];
+
+    for (const [promptId, { targetState, sourceRule }] of pendingStates.entries()) {
         const entry = getPromptOrderEntrySafe(promptId);
+        const action = {
+            promptId,
+            promptName: getPromptDebugName(promptId),
+            targetState,
+            sourceRule,
+            changed: false,
+            missing: !entry,
+        };
+        promptActions.push(action);
         if (!entry || entry.enabled === targetState) continue;
 
         entry.enabled = targetState;
+        action.changed = true;
         changed = true;
 
         if (getNotificationsEnabled() && targetState === true) {
@@ -1118,6 +1815,17 @@ function processText(recentMessages) {
         promptManager.saveServiceSettings();
         promptManager.render();
     }
+
+    lastRuleDebugState = {
+        checkedAt: new Date().toLocaleString(),
+        messageCount: Array.isArray(recentMessages) ? recentMessages.length : 0,
+        evaluatedCount: ruleDebugRecords.length,
+        matchedCount: ruleDebugRecords.filter(record => record.matched).length,
+        changedCount: promptActions.filter(action => action.changed).length,
+        rules: ruleDebugRecords,
+        promptActions,
+    };
+    renderRuleDebugStatus();
 }
 
 function extractMessageData(msgDiv, chatMsg) {
@@ -1201,21 +1909,27 @@ async function updatePresetState() {
     if (!isChatCompletionApiActive()) {
         currentPresetRules = [];
         currentPresetName = null;
+        currentPresetLlmInjectorSettings = null;
         renderRulesLists();
+        renderLlmInjectorSettings();
         return;
     }
 
     const presetMgr = getOpenAiPresetManager();
     if (!presetMgr) {
         currentPresetRules = [];
+        currentPresetLlmInjectorSettings = null;
         renderRulesLists();
+        renderLlmInjectorSettings();
         return;
     }
     
     currentPresetName = presetMgr.getSelectedPresetName();
     if (!currentPresetName) {
         currentPresetRules = [];
+        currentPresetLlmInjectorSettings = null;
         renderRulesLists();
+        renderLlmInjectorSettings();
         return;
     }
     
@@ -1231,7 +1945,9 @@ async function updatePresetState() {
     
     if (!aptExt) {
         currentPresetRules = [];
+        currentPresetLlmInjectorSettings = null;
         renderRulesLists();
+        renderLlmInjectorSettings();
         forceRecheck();
         return;
     }
@@ -1278,7 +1994,9 @@ async function updatePresetState() {
     }
     
     currentPresetRules = Array.isArray(aptExt.rules) ? aptExt.rules : [];
+    currentPresetLlmInjectorSettings = normalizeLlmInjectorSettings(aptExt.llmInjector || aptExt.llm_injector || aptExt.sceneInjector || null);
     renderRulesLists();
+    renderLlmInjectorSettings();
     forceRecheck();
 }
 
@@ -1364,6 +2082,9 @@ jQuery(async () => {
     $('#apt_enable_notifications').off('change.apt_notifications').prop('checked', getNotificationsEnabled()).on('change.apt_notifications', function() {
         setNotificationsEnabled($(this).prop('checked'));
     });
+
+    renderLlmInjectorSettings();
+    bindLlmInjectorSettings();
 
     $('#apt_controlled_prompt_search').off('input.apt_controlled').on('input.apt_controlled', () => renderControlledPromptSearch());
 
@@ -1535,6 +2256,10 @@ jQuery(async () => {
         eventSource.on(event_types.PRESET_CHANGED, () => {
             updatePresetState();
         });
+
+        if (event_types.GENERATION_AFTER_COMMANDS) {
+            eventSource.on(event_types.GENERATION_AFTER_COMMANDS, onGenerationAfterCommandsForLlmInjector);
+        }
         
         // 整合至聊天補全預設設定檔 (OAI Preset) 的匯入偵測
         // 註: 目前 SillyTavern 只有針對 OpenAI API 提供 IMPORT_READY 攔截點
@@ -1577,7 +2302,9 @@ jQuery(async () => {
                     
                     if (confirmResult) {
                         // 標準化為新格式，確保 SillyTavern 存檔時是正確的格式
-                        result.data.extensions.auto_prompt_toggler = { rules: importedRules };
+                        const preservedAptData = aptData && typeof aptData === 'object' && !Array.isArray(aptData) ? { ...aptData } : {};
+                        preservedAptData.rules = importedRules;
+                        result.data.extensions.auto_prompt_toggler = preservedAptData;
                         toastr.success(`已從預設檔匯入 ${importedRules.length} 條 APT 規則`, 'Auto Prompt Toggler');
                     } else {
                         // 使用者選擇捨棄，將資料從 result.data 移除，這樣存檔時就不會有規則
