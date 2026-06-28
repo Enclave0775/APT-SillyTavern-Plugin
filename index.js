@@ -1,4 +1,4 @@
-import { chat, eventSource, event_types, generateRaw, getRequestHeaders, main_api, saveSettingsDebounced } from '../../../../script.js';
+import { chat, eventSource, event_types, generateRaw, getRequestHeaders, main_api, saveSettingsDebounced, stopGeneration } from '../../../../script.js';
 import { extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { model_list, oai_settings, promptManager } from '../../../openai.js';
 import { download, getFileText, escapeHtml } from '../../../utils.js';
@@ -28,6 +28,7 @@ const DEFAULT_LLM_INJECTOR_SETTINGS = {
 };
 
 let llmInjectorBusy = false;
+let needsDelayAfterInjection = false;
 
 const LLM_INJECTOR_MODEL_SETTING_KEYS = {
     openai: 'openai_model',
@@ -943,7 +944,6 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
 
     const data = await response.json();
     const content = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
-    if (!content) throw new Error('Google AI Studio 沒有回傳文字內容');
     return content;
 }
 
@@ -984,9 +984,6 @@ async function generateDirectLlmInjector(settings, prompt) {
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? '';
-    if (!content) {
-        throw new Error('獨立 LLM 沒有回傳文字內容');
-    }
     return content;
 }
 
@@ -1034,6 +1031,7 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
 
     llmInjectorBusy = true;
     const toast = toastr.info('正在判斷場景類型...', 'Auto Prompt Toggler');
+    let injectSuccess = false;
     try {
         const prompt = applyLlmInjectorTemplate(settings.promptTemplate, {
             userInput,
@@ -1041,18 +1039,42 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
         });
         const rawResult = await generateRawForLlmInjector(settings, prompt);
         const result = normalizeLlmInjectorResult(rawResult);
-        if (!result) return;
+        if (!result) {
+            throw new Error('LLM回傳空值，已中斷後續生成。');
+        }
 
         const injection = applyLlmInjectorTemplate(settings.injectionTemplate, { result, userInput, recentMessages: '' });
         textarea.val(`${userInput}${injection}`)[0].dispatchEvent(new Event('input', { bubbles: true }));
         if (getNotificationsEnabled()) toastr.success(`場景判斷: ${result}`, 'Auto Prompt Toggler');
         forceRecheck();
+        injectSuccess = true;
     } catch (e) {
         console.error('[APT] LLM scene injector failed:', e);
         toastr.error(`LLM 場景注入失敗: ${e.message || e}`, 'Auto Prompt Toggler');
+        
+        // Stop generation if LLM injector fails (including empty response)
+        if (typeof stopGeneration === 'function') {
+            stopGeneration();
+            // Optional fallback to unlock UI if stopGeneration didn't handle it early in the pipeline
+            if (typeof unblockGeneration === 'function') {
+                unblockGeneration(type);
+            }
+        }
     } finally {
         toastr.clear(toast);
         llmInjectorBusy = false;
+        if (injectSuccess) {
+            needsDelayAfterInjection = true;
+        }
+    }
+}
+
+async function onMessageSentDelay() {
+    if (needsDelayAfterInjection) {
+        needsDelayAfterInjection = false;
+        // Delay to allow APT and other regex plugins to process the injected text after it is sent
+        // but before generating the LLM response
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
 }
 
@@ -2259,6 +2281,9 @@ jQuery(async () => {
 
         if (event_types.GENERATION_AFTER_COMMANDS) {
             eventSource.on(event_types.GENERATION_AFTER_COMMANDS, onGenerationAfterCommandsForLlmInjector);
+        }
+        if (event_types.MESSAGE_SENT) {
+            eventSource.on(event_types.MESSAGE_SENT, onMessageSentDelay);
         }
         
         // 整合至聊天補全預設設定檔 (OAI Preset) 的匯入偵測
