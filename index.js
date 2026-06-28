@@ -2288,6 +2288,31 @@ jQuery(async () => {
         
         // 整合至聊天補全預設設定檔 (OAI Preset) 的匯入偵測
         // 註: 目前 SillyTavern 只有針對 OpenAI API 提供 IMPORT_READY 攔截點
+        if (event_types.OAI_PRESET_EXPORT_READY) {
+            eventSource.on(event_types.OAI_PRESET_EXPORT_READY, async (preset) => {
+                if (preset && preset.extensions && preset.extensions.auto_prompt_toggler && preset.extensions.auto_prompt_toggler.llmInjector) {
+                    const llmInjector = preset.extensions.auto_prompt_toggler.llmInjector;
+                    if (llmInjector.baseUrl || llmInjector.apiKey) {
+                        const htmlMessage = `
+                            <h3>要一併匯出 APT 插件的 API 端點與 Key 嗎？</h3>
+                            <p>此提示詞預設檔包含了 <strong>LLM 場景注入</strong> 的獨立 API 端點或 Key。</p>
+                            <p style="font-size: 0.8em; color: gray;">如果您準備分享此設定檔，建議不要匯出 API 資訊，以免您的 API Key 外洩。</p>
+                        `;
+                        const confirmResult = await callGenericPopup(htmlMessage, POPUP_TYPE.CONFIRM, '', { 
+                            okButton: '保留 API 資訊', 
+                            cancelButton: '移除 API 資訊'
+                        });
+                        
+                        if (!confirmResult) {
+                            delete preset.extensions.auto_prompt_toggler.llmInjector.baseUrl;
+                            delete preset.extensions.auto_prompt_toggler.llmInjector.apiKey;
+                            toastr.info('已在匯出時移除 APT 的 API 端點與 Key', 'Auto Prompt Toggler');
+                        }
+                    }
+                }
+            });
+        }
+
         if (event_types.OAI_PRESET_IMPORT_READY) {
             eventSource.on(event_types.OAI_PRESET_IMPORT_READY, async (result) => {
             // result is { data: object; presetName: string }
