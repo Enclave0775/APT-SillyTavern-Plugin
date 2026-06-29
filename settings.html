@@ -10,7 +10,7 @@
                     <strong>設定</strong>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
-                <div class="inline-drawer-content apt-basic-settings-panel" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                <div class="inline-drawer-content apt-basic-settings-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
                     <div class="apt-settings-item" style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <label for="apt_language_select" data-apt-i18n="language_label">介面語言</label>
                         <select id="apt_language_select" class="text_pole" style="width: auto; min-width: 130px;">
@@ -81,16 +81,26 @@
                     <span>需要使用者輸入非空才執行</span>
                 </label>
 
-                <label for="apt_llm_injector_system_prompt" style="display: block; margin-top: 8px;">分類器 System Prompt</label>
-                <textarea id="apt_llm_injector_system_prompt" class="text_pole textarea_compact" rows="3" style="width: 100%; box-sizing: border-box; max-height: 120px;"></textarea>
-
-                <label for="apt_llm_injector_prompt_template" style="display: block; margin-top: 8px;">分類提示詞模板</label>
-                <textarea id="apt_llm_injector_prompt_template" class="text_pole textarea_compact" rows="4" style="width: 100%; box-sizing: border-box; max-height: 160px;"></textarea>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;" class="apt-llm-streaming-row">
+                    <input type="checkbox" id="apt_llm_injector_use_streaming">
+                    <span>啟用流式傳輸 (Streaming) 以繞過部分 API 審查，並在背景接收完整回覆後再判定</span>
+                </label>
+                
+                <details style="margin-top: 8px; margin-bottom: 8px; border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                    <summary><strong>提示詞設置 (Custom Prompts)</strong></summary>
+                    <small style="display: block; margin-bottom: 8px; color: var(--SmartThemeQuoteColor);">
+                        此處設定的訊息會依序作為判斷場景用的提示詞。可用變數：<code>&#123;&#123;userInput&#125;&#125;</code>、<code>&#123;&#123;recentMessages&#125;&#125;</code>、<code>&#123;&#123;random::a,b,c&#125;&#125;</code>、<code>&#123;&#123;roll 1d20&#125;&#125;</code>
+                    </small>
+                    <div id="apt_llm_injector_custom_messages_container" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Dynamic messages will be added here -->
+                    </div>
+                    <button id="apt_llm_injector_add_custom_message" class="menu_button fa-solid fa-plus" type="button" style="margin-top: 8px; width: 100%;"> 新增訊息</button>
+                </details>
 
                 <label for="apt_llm_injector_injection_template" style="display: block; margin-top: 8px;">附加到輸入後方的模板</label>
                 <textarea id="apt_llm_injector_injection_template" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;"></textarea>
                 <small style="display: block; margin-top: 6px; color: var(--SmartThemeQuoteColor);">
-                    可用變數：<code>{{userInput}}</code>、<code>{{recentMessages}}</code>、<code>{{result}}</code>。預設會附加 <code>[APT_SCENE: 標籤]</code>，你可以建立 APT 規則偵測這段文字來觸發提示詞條目。<br>
+                    可用變數：<code>&#123;&#123;userInput&#125;&#125;</code>、<code>&#123;&#123;recentMessages&#125;&#125;</code>、<code>&#123;&#123;result&#125;&#125;</code>、<code>&#123;&#123;random::a,b,c&#125;&#125;</code>、<code>&#123;&#123;roll 1d20&#125;&#125;</code>。預設會附加 <code>[APT_SCENE: 標籤]</code>，你可以建立 APT 規則偵測這段文字來觸發提示詞條目。<br>
                     「LLM 供應商」可選：沿用 SillyTavern、OpenAI 相容自定義、Google AI Studio / Gemini。<br>
                     OpenAI 相容模式會呼叫 <code>{Base URL}/chat/completions</code> 與 <code>{Base URL}/models</code>；Google AI Studio 會呼叫 Gemini <code>generateContent</code> 與 <code>/models</code>。<br>
                     按「拉取模型」會依照選擇的供應商取得模型列表，並可一鍵回填到「獨立模型」。<br>
@@ -105,7 +115,7 @@
                     <strong>規則管理</strong>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
-                <div class="inline-drawer-content apt-rules-panel" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                <div class="inline-drawer-content apt-rules-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 5px;">
                 <strong id="apt_global_rules_title">全域規則 (Global Rules)</strong>
                 <div style="display: flex; gap: 4px; align-items: center; background-color: var(--background-color-secondary); padding: 4px; border-radius: 5px; border: 1px solid var(--border-color); flex-wrap: wrap;">
@@ -157,6 +167,13 @@
             <div id="apt_rule_debug_panel" class="apt-rule-debug-panel">
                 <div class="apt-rule-debug-empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>
             </div>
+
+            <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <strong id="apt_llm_log_title">最近一次 LLM 場景注入紀錄 (Log)</strong>
+            </div>
+            <div id="apt_llm_log_panel" class="apt-rule-debug-panel" style="font-family: monospace; white-space: pre-wrap; font-size: 0.9em; max-height: 300px; overflow-y: auto;">
+                <div class="apt-rule-debug-empty">尚未發送任何 LLM 場景注入請求。</div>
+            </div>
                 </div>
             </div>
 
@@ -184,5 +201,22 @@
         <div class="menu_button fa-solid fa-download rule-export" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="匯出"></div>
         <div class="menu_button rule-move" style="cursor: pointer; padding: 5px; margin-right: 5px;" title="移動規則"></div>
         <div class="menu_button fa-solid fa-trash rule-delete" style="cursor: pointer; padding: 5px; color: var(--smart-theme-color);" title="刪除"></div>
+    </div>
+</template>
+
+<template id="apt_llm_injector_custom_message_template">
+    <div class="apt-custom-message-item" style="border: 1px dashed var(--border-color); padding: 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; cursor: grab;" class="apt-custom-message-handle">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <i class="fa-solid fa-grip-lines drag-handle"></i>
+                <select class="text_pole apt-custom-message-role" style="width: 120px; padding: 2px;">
+                    <option value="system">系統訊息</option>
+                    <option value="user">User訊息</option>
+                    <option value="assistant">AI助理訊息</option>
+                </select>
+            </div>
+            <div class="menu_button fa-solid fa-trash apt-custom-message-delete" style="color: var(--smart-theme-color); cursor: pointer;" title="刪除"></div>
+        </div>
+        <textarea class="text_pole textarea_compact apt-custom-message-content" rows="3" style="width: 100%; box-sizing: border-box;"></textarea>
     </div>
 </template>

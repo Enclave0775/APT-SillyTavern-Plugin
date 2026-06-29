@@ -22,9 +22,13 @@ const DEFAULT_LLM_INJECTOR_SETTINGS = {
     responseLength: 80,
     includeRecentMessages: 6,
     includeUserInput: true,
+    customField1: '',
+    customField2: '',
+    customMessages: [],
     systemPrompt: '你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。',
     promptTemplate: `請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`,
     injectionTemplate: '\n\n[APT_SCENE: {{result}}]',
+    useStreaming: false,
 };
 
 let llmInjectorBusy = false;
@@ -637,10 +641,75 @@ function renderLlmInjectorSettings() {
     $('#apt_llm_injector_response_length').val(settings.responseLength ?? DEFAULT_LLM_INJECTOR_SETTINGS.responseLength);
     $('#apt_llm_injector_recent_count').val(settings.includeRecentMessages ?? DEFAULT_LLM_INJECTOR_SETTINGS.includeRecentMessages);
     $('#apt_llm_injector_include_user').prop('checked', settings.includeUserInput !== false);
-    $('#apt_llm_injector_system_prompt').val(settings.systemPrompt || '');
-    $('#apt_llm_injector_prompt_template').val(settings.promptTemplate || '');
+    $('#apt_llm_injector_use_streaming').prop('checked', !!settings.useStreaming);
     $('#apt_llm_injector_injection_template').val(settings.injectionTemplate || DEFAULT_LLM_INJECTOR_SETTINGS.injectionTemplate);
     updateLlmInjectorProviderUi();
+    
+    renderCustomMessagesUI();
+}
+
+function renderCustomMessagesUI() {
+    const container = $('#apt_llm_injector_custom_messages_container');
+    if (!container.length) return;
+    container.empty();
+
+    const settings = getEffectiveLlmInjectorSettings();
+    const messages = Array.isArray(settings.customMessages) ? settings.customMessages : [];
+    
+    // Fallback: migrate old custom fields and standalone prompts to the new format if the new array is empty
+    if (messages.length === 0) {
+        if (settings.systemPrompt) messages.push({ role: 'system', content: settings.systemPrompt });
+        if (settings.promptTemplate) messages.push({ role: 'user', content: settings.promptTemplate });
+        if (settings.customAi1) messages.push({ role: 'assistant', content: settings.customAi1 });
+        if (settings.customSys1) messages.push({ role: 'system', content: settings.customSys1 });
+        if (settings.customAi2) messages.push({ role: 'assistant', content: settings.customAi2 });
+        if (settings.customSys2) messages.push({ role: 'system', content: settings.customSys2 });
+        if (settings.customAi3) messages.push({ role: 'assistant', content: settings.customAi3 });
+    }
+
+    const template = $('#apt_llm_injector_custom_message_template').html();
+    messages.forEach((msg, index) => {
+        const item = $(template);
+        item.find('.apt-custom-message-role').val(msg.role || 'system');
+        item.find('.apt-custom-message-content').val(msg.content || '');
+        
+        item.find('.apt-custom-message-delete').on('click', function() {
+            $(this).closest('.apt-custom-message-item').remove();
+            saveCustomMessages();
+        });
+
+        item.find('.apt-custom-message-role, .apt-custom-message-content').on('change input', function() {
+            saveCustomMessages();
+        });
+        
+        container.append(item);
+    });
+
+    if ($.fn.sortable) {
+        if (container.data('ui-sortable')) {
+            container.sortable('destroy');
+        }
+        container.sortable({
+            handle: '.apt-custom-message-handle',
+            tolerance: 'pointer',
+            update: function() {
+                saveCustomMessages();
+            }
+        });
+    }
+}
+
+function saveCustomMessages() {
+    const container = $('#apt_llm_injector_custom_messages_container');
+    const messages = [];
+    container.find('.apt-custom-message-item').each(function() {
+        const role = $(this).find('.apt-custom-message-role').val();
+        const content = $(this).find('.apt-custom-message-content').val();
+        if (role && content) {
+            messages.push({ role, content });
+        }
+    });
+    saveLlmInjectorSettings({ customMessages: messages });
 }
 
 function renderLlmInjectorModelOptions(models = [], selectedModel = '') {
@@ -692,8 +761,15 @@ function bindLlmInjectorSettings() {
     bindSave('#apt_llm_injector_response_length', el => ({ responseLength: Math.max(1, Number.parseInt(el.val(), 10) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength) }));
     bindSave('#apt_llm_injector_recent_count', el => ({ includeRecentMessages: Math.max(0, Number.parseInt(el.val(), 10) || 0) }));
     bindSave('#apt_llm_injector_include_user', el => ({ includeUserInput: el.prop('checked') }));
-    bindSave('#apt_llm_injector_system_prompt', el => ({ systemPrompt: String(el.val() || '') }));
-    bindSave('#apt_llm_injector_prompt_template', el => ({ promptTemplate: String(el.val() || '') }));
+    bindSave('#apt_llm_injector_use_streaming', el => ({ useStreaming: el.prop('checked') }));
+    
+    $('#apt_llm_injector_add_custom_message').off('click.apt_llm').on('click.apt_llm', function() {
+        const settings = getEffectiveLlmInjectorSettings();
+        const messages = Array.isArray(settings.customMessages) ? [...settings.customMessages] : [];
+        messages.push({ role: 'system', content: '' });
+        saveLlmInjectorSettings({ customMessages: messages });
+        renderCustomMessagesUI();
+    });
     bindSave('#apt_llm_injector_injection_template', el => ({ injectionTemplate: String(el.val() || '') }));
 
     $('#apt_llm_injector_model_select').off('change.apt_llm').on('change.apt_llm', function() {
@@ -769,6 +845,7 @@ function updateLlmInjectorProviderUi() {
     $('.apt-llm-provider-api-row').toggle(provider === 'sillytavern');
     $('.apt-llm-base-url-row').toggle(direct);
     $('.apt-llm-api-key-row').toggle(direct);
+    $('.apt-llm-streaming-row').toggle(direct);
     $('#apt_llm_injector_base_url').attr('placeholder', google
         ? '選填；預設 https://generativelanguage.googleapis.com/v1beta'
         : '例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1');
@@ -801,7 +878,29 @@ function formatRecentMessagesForLlmInjector(limit) {
 }
 
 function applyLlmInjectorTemplate(template, values) {
-    return String(template || '').replace(/{{\s*(userInput|recentMessages|result)\s*}}/g, (_, key) => values[key] ?? '');
+    let resultText = String(template || '');
+
+    // 替換 {{random::a,b,c}}
+    resultText = resultText.replace(/\{\{\s*random::(.*?)\}\}/ig, (_, optionsStr) => {
+        const options = optionsStr.split(',').map(s => s.trim());
+        return options[Math.floor(Math.random() * options.length)] || '';
+    });
+
+    // 替換 {{roll 1d100}}
+    resultText = resultText.replace(/\{\{\s*roll\s+(\d+)d(\d+)\s*\}\}/ig, (_, diceStr, sidesStr) => {
+        const dice = Math.max(1, parseInt(diceStr, 10) || 1);
+        const sides = Math.max(1, parseInt(sidesStr, 10) || 20);
+        let total = 0;
+        for (let i = 0; i < dice; i++) {
+            total += Math.floor(Math.random() * sides) + 1;
+        }
+        return total.toString();
+    });
+
+    // 替換 {{userInput}}, {{recentMessages}}, {{result}}
+    resultText = resultText.replace(/\{\{\s*(userInput|recentMessages|result)\s*\}\}/g, (_, key) => values[key] ?? '');
+    
+    return resultText;
 }
 
 function normalizeLlmInjectorResult(text) {
@@ -919,18 +1018,51 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
 
     const baseUrl = getGoogleAiStudioBaseUrl(settings);
     const apiKey = encodeURIComponent(String(settings.apiKey || '').trim());
+    const contents = [];
+    
+    const messages = Array.isArray(settings.customMessages) ? settings.customMessages : [];
+    // Fallback if customMessages array is somehow missing
+    if (messages.length === 0) {
+        if (settings.customAi1) messages.push({ role: 'assistant', content: settings.customAi1 });
+        if (settings.customSys1) messages.push({ role: 'system', content: settings.customSys1 });
+        if (settings.customAi2) messages.push({ role: 'assistant', content: settings.customAi2 });
+        if (settings.customSys2) messages.push({ role: 'system', content: settings.customSys2 });
+        if (settings.customAi3) messages.push({ role: 'assistant', content: settings.customAi3 });
+    }
+    
+    for (const msg of messages) {
+        if (!msg.content) continue;
+        let role = msg.role;
+        // Map roles for Google API
+        if (role === 'system') role = 'user'; // System usually mapped to user in old gemini mapping without instructions, or use systemInstruction
+        if (role === 'assistant') role = 'model';
+        if (role === 'user') role = 'user';
+        
+        contents.push({ role, parts: [{ text: String(msg.content) }] });
+    }
+    
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+
     const body = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: contents,
         generationConfig: {
             maxOutputTokens: Number(settings.responseLength) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength,
             temperature: 0,
         },
+        safetySettings: [
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }
+        ],
     };
     if (settings.systemPrompt) {
         body.systemInstruction = { parts: [{ text: String(settings.systemPrompt) }] };
     }
 
-    const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`, {
+    const endpoint = settings.useStreaming ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
+
+    const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:${endpoint}key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -942,9 +1074,33 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
         throw new Error(errorText || response.statusText || `HTTP ${response.status}`);
     }
 
-    const data = await response.json();
-    const content = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
-    return content;
+    if (settings.useStreaming) {
+        let content = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        const text = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
+                        content += text;
+                    } catch (e) {
+                        // ignore parse errors for partial chunks
+                    }
+                }
+            }
+        }
+        return content;
+    } else {
+        const data = await response.json();
+        const content = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
+        return content;
+    }
 }
 
 async function generateDirectLlmInjector(settings, prompt) {
@@ -958,21 +1114,38 @@ async function generateDirectLlmInjector(settings, prompt) {
         throw new Error('使用 OpenAI 相容自定義 API 時必須指定模型');
     }
 
-    const messages = [];
+    const requestMessages = [];
     if (settings.systemPrompt) {
-        messages.push({ role: 'system', content: String(settings.systemPrompt) });
+        requestMessages.push({ role: 'system', content: String(settings.systemPrompt) });
     }
-    messages.push({ role: 'user', content: prompt });
+    
+    const customMessages = Array.isArray(settings.customMessages) ? settings.customMessages : [];
+    // Fallback if customMessages array is somehow missing
+    if (customMessages.length === 0) {
+        if (settings.customAi1) customMessages.push({ role: 'assistant', content: settings.customAi1 });
+        if (settings.customSys1) customMessages.push({ role: 'system', content: settings.customSys1 });
+        if (settings.customAi2) customMessages.push({ role: 'assistant', content: settings.customAi2 });
+        if (settings.customSys2) customMessages.push({ role: 'system', content: settings.customSys2 });
+        if (settings.customAi3) customMessages.push({ role: 'assistant', content: settings.customAi3 });
+    }
+    
+    for (const msg of customMessages) {
+        if (msg.content) {
+            requestMessages.push({ role: msg.role || 'system', content: String(msg.content) });
+        }
+    }
+    
+    requestMessages.push({ role: 'user', content: prompt });
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: getDirectLlmInjectorHeaders(settings),
         body: JSON.stringify({
             model,
-            messages,
+            messages: requestMessages,
             max_tokens: Number(settings.responseLength) || DEFAULT_LLM_INJECTOR_SETTINGS.responseLength,
             temperature: 0,
-            stream: false,
+            stream: !!settings.useStreaming,
         }),
         cache: 'no-cache',
     });
@@ -982,9 +1155,33 @@ async function generateDirectLlmInjector(settings, prompt) {
         throw new Error(errorText || response.statusText || `HTTP ${response.status}`);
     }
 
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? '';
-    return content;
+    if (settings.useStreaming) {
+        let content = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        const delta = data?.choices?.[0]?.delta?.content || '';
+                        content += delta;
+                    } catch (e) {
+                        // ignore parse errors
+                    }
+                }
+            }
+        }
+        return content;
+    } else {
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? '';
+        return content;
+    }
 }
 
 async function generateRawForLlmInjector(settings, prompt) {
@@ -1017,7 +1214,13 @@ async function generateRawForLlmInjector(settings, prompt) {
 }
 
 async function onGenerationAfterCommandsForLlmInjector(type, generationOptions = {}, dryRun = false) {
-    const settings = getEffectiveLlmInjectorSettings();
+    // Create a deep copy of settings so we don't accidentally mutate the saved templates
+    const baseSettings = getEffectiveLlmInjectorSettings();
+    const settings = { ...baseSettings };
+    if (Array.isArray(settings.customMessages)) {
+        settings.customMessages = settings.customMessages.map(msg => ({ ...msg }));
+    }
+
     if (!settings.enabled || dryRun || llmInjectorBusy) return;
     if (type && ![undefined, 'normal'].includes(type)) return;
     if (generationOptions?.automatic_trigger || generationOptions?.quiet_prompt || generationOptions?.depth) return;
@@ -1033,18 +1236,64 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
     const toast = toastr.info('正在判斷場景類型...', 'Auto Prompt Toggler');
     let injectSuccess = false;
     try {
-        const prompt = applyLlmInjectorTemplate(settings.promptTemplate, {
+        const templateValues = {
             userInput,
             recentMessages: formatRecentMessagesForLlmInjector(Number(settings.includeRecentMessages) || 0),
-        });
+            result: ''
+        };
+
+        // 替換 Custom Messages 裡的變數
+        if (Array.isArray(settings.customMessages)) {
+            settings.customMessages = settings.customMessages.map(msg => ({
+                role: msg.role,
+                content: applyLlmInjectorTemplate(msg.content, templateValues)
+            }));
+        } else {
+             // 備用防呆：如果完全沒設定，至少給個基本的提示詞
+             settings.customMessages = [
+                 { role: 'system', content: applyLlmInjectorTemplate('你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。', templateValues) },
+                 { role: 'user', content: applyLlmInjectorTemplate(`請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`, templateValues) }
+             ];
+        }
+
+        // 把最後一個 user 訊息抽出來當作主要 prompt，以符合原本 generateRawForLlmInjector 的簽章
+        let prompt = '';
+        const lastUserIndex = settings.customMessages.findLastIndex(msg => msg.role === 'user');
+        if (lastUserIndex !== -1) {
+             prompt = settings.customMessages[lastUserIndex].content;
+             settings.customMessages.splice(lastUserIndex, 1);
+        }
+
         const rawResult = await generateRawForLlmInjector(settings, prompt);
         const result = normalizeLlmInjectorResult(rawResult);
+        
+        // 更新 UI Log
+        const logPanel = $('#apt_llm_log_panel');
+        if (logPanel.length) {
+            logPanel.empty();
+            let logHtml = `<div style="color: var(--SmartThemeQuoteColor); margin-bottom: 8px;">[${new Date().toLocaleTimeString()}] LLM 場景判斷已執行</div>`;
+            logHtml += `<div><strong>發送的提示詞順序：</strong></div>`;
+            settings.customMessages.forEach((msg, idx) => {
+                logHtml += `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid gray;">[${msg.role}]<br>${escapeHtml(msg.content)}</div>`;
+            });
+            logHtml += `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid gray;">[user (Main Prompt)]<br>${escapeHtml(prompt)}</div>`;
+            logHtml += `<div style="margin-top: 8px;"><strong>LLM 原始回覆：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(rawResult)}</span></div>`;
+            logHtml += `<div style="margin-top: 8px;"><strong>解析後標籤：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(result || '(空值)')}</span></div>`;
+            logPanel.html(logHtml);
+        }
+
         if (!result) {
             throw new Error('LLM回傳空值，已中斷後續生成。');
         }
 
-        const injection = applyLlmInjectorTemplate(settings.injectionTemplate, { result, userInput, recentMessages: '' });
+        templateValues.result = result;
+        const injection = applyLlmInjectorTemplate(settings.injectionTemplate, templateValues);
         textarea.val(`${userInput}${injection}`)[0].dispatchEvent(new Event('input', { bubbles: true }));
+        
+        if (logPanel.length) {
+             logPanel.append(`<div style="margin-top: 8px;"><strong>最終注入字串：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(injection)}</span></div>`);
+        }
+
         if (getNotificationsEnabled()) toastr.success(`場景判斷: ${result}`, 'Auto Prompt Toggler');
         forceRecheck();
         injectSuccess = true;
