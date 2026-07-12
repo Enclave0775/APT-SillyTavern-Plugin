@@ -85,6 +85,11 @@
                     <input type="checkbox" id="apt_llm_injector_use_streaming">
                     <span>啟用流式傳輸 (Streaming) 以繞過部分 API 審查，並在背景接收完整回覆後再判定</span>
                 </label>
+
+                <div style="margin-top: 8px; margin-bottom: 8px;">
+                    <label for="apt_llm_injector_cleanup_regex" style="display: block; margin-bottom: 4px;">發送給主模型前，消除匹配此正則表達式的字串 (每行一個)</label>
+                    <textarea id="apt_llm_injector_cleanup_regex" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;" placeholder="<scene>.*?<\/scene>\n*&#10;<cot_flags>.*?<\/cot_flags>\n*"></textarea>
+                </div>
                 
                 <details style="margin-top: 8px; margin-bottom: 8px; border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
                     <summary><strong>提示詞設置 (Custom Prompts)</strong></summary>
