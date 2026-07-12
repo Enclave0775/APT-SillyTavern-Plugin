@@ -28,6 +28,7 @@ const DEFAULT_LLM_INJECTOR_SETTINGS = {
     systemPrompt: '你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。',
     promptTemplate: `請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`,
     injectionTemplate: '\n\n[APT_SCENE: {{result}}]',
+    cleanupRegex: '<scene>.*?<\\/scene>\\n*|<cot_flags>.*?<\\/cot_flags>\\n*',
     useStreaming: false,
 };
 
@@ -643,6 +644,7 @@ function renderLlmInjectorSettings() {
     $('#apt_llm_injector_include_user').prop('checked', settings.includeUserInput !== false);
     $('#apt_llm_injector_use_streaming').prop('checked', !!settings.useStreaming);
     $('#apt_llm_injector_injection_template').val(settings.injectionTemplate || DEFAULT_LLM_INJECTOR_SETTINGS.injectionTemplate);
+    $('#apt_llm_injector_cleanup_regex').val(settings.cleanupRegex || DEFAULT_LLM_INJECTOR_SETTINGS.cleanupRegex);
     updateLlmInjectorProviderUi();
     
     renderCustomMessagesUI();
@@ -771,6 +773,7 @@ function bindLlmInjectorSettings() {
         renderCustomMessagesUI();
     });
     bindSave('#apt_llm_injector_injection_template', el => ({ injectionTemplate: String(el.val() || '') }));
+    bindSave('#apt_llm_injector_cleanup_regex', el => ({ cleanupRegex: String(el.val() || '') }));
 
     $('#apt_llm_injector_model_select').off('change.apt_llm').on('change.apt_llm', function() {
         const model = String($(this).val() || '').trim();
@@ -2140,6 +2143,43 @@ function extractMessageData(msgDiv, chatMsg) {
     return { type, rawText, displayText };
 }
 
+function cleanupLlmInjectorText(eventData) {
+    // 檢查是否有傳入有效的 eventData 以及聊天陣列
+    const promptContent = eventData?.chat;
+    if (!promptContent || !Array.isArray(promptContent)) return;
+
+    const settings = getEffectiveLlmInjectorSettings();
+    if (!settings || !settings.cleanupRegex) return;
+
+    try {
+        const regexLines = settings.cleanupRegex.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        if (regexLines.length === 0) return;
+
+        // 將陣列裡的每一行作為獨立的正則表達式來處理
+        for (const regexStr of regexLines) {
+            try {
+                const regex = new RegExp(regexStr, 'g');
+                // 對所有提示詞區塊進行正則替換
+                for (let i = 0; i < promptContent.length; i++) {
+                    if (typeof promptContent[i] === 'string') {
+                        promptContent[i] = promptContent[i].replace(regex, '');
+                    } else if (promptContent[i] && typeof promptContent[i].text === 'string') {
+                        // 支援具有 text 屬性的物件格式
+                        promptContent[i].text = promptContent[i].text.replace(regex, '');
+                    } else if (promptContent[i] && typeof promptContent[i].content === 'string') {
+                        // 支援 OpenAI 格式
+                        promptContent[i].content = promptContent[i].content.replace(regex, '');
+                    }
+                }
+            } catch (err) {
+                console.warn(`[Auto Prompt Toggler] Invalid regex in cleanup settings: ${regexStr}`, err);
+            }
+        }
+    } catch (e) {
+        console.error("[Auto Prompt Toggler] Error in cleanupLlmInjectorText:", e);
+    }
+}
+
 function initObserver() {
     const chatContainer = document.querySelector('#chat');
     if (!chatContainer) {
@@ -2534,6 +2574,9 @@ jQuery(async () => {
         if (event_types.MESSAGE_SENT) {
             eventSource.on(event_types.MESSAGE_SENT, onMessageSentDelay);
         }
+        if (event_types.CHAT_COMPLETION_PROMPT_READY) {
+            eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, cleanupLlmInjectorText);
+        }
         
         // 整合至聊天補全預設設定檔 (OAI Preset) 的匯入偵測
         // 註: 目前 SillyTavern 只有針對 OpenAI API 提供 IMPORT_READY 攔截點
@@ -2568,21 +2611,26 @@ jQuery(async () => {
             if (result && result.data && result.data.extensions && result.data.extensions.auto_prompt_toggler) {
                 let aptData = result.data.extensions.auto_prompt_toggler;
                 let importedRules = [];
+                let hasLlmInjector = false;
                 
                 if (Array.isArray(aptData)) {
                     importedRules = aptData;
-                } else if (aptData && aptData.rules && Array.isArray(aptData.rules)) {
-                    importedRules = aptData.rules;
                 } else if (aptData && typeof aptData === 'object') {
-                    // Extract from old profile dictionary
-                    for (const profileRules of Object.values(aptData)) {
-                        if (Array.isArray(profileRules)) {
-                            importedRules = importedRules.concat(profileRules);
+                    hasLlmInjector = !!aptData.llmInjector || !!aptData.llm_injector || !!aptData.sceneInjector;
+                    if (aptData.rules && Array.isArray(aptData.rules)) {
+                        importedRules = aptData.rules;
+                    } else {
+                        // Extract from old profile dictionary
+                        for (const [key, profileRules] of Object.entries(aptData)) {
+                            if (key !== 'llmInjector' && key !== 'llm_injector' && key !== 'sceneInjector' && Array.isArray(profileRules)) {
+                                importedRules = importedRules.concat(profileRules);
+                            }
                         }
                     }
                 }
                 
                 importedRules = importedRules.map(normalizeImportedRule).filter(Boolean);
+                const preservedAptData = aptData && typeof aptData === 'object' && !Array.isArray(aptData) ? { ...aptData } : {};
                 
                 if (importedRules.length > 0) {
                     const presetName = result.presetName || 'Imported Preset';
@@ -2601,18 +2649,28 @@ jQuery(async () => {
                     
                     if (confirmResult) {
                         // 標準化為新格式，確保 SillyTavern 存檔時是正確的格式
-                        const preservedAptData = aptData && typeof aptData === 'object' && !Array.isArray(aptData) ? { ...aptData } : {};
                         preservedAptData.rules = importedRules;
                         result.data.extensions.auto_prompt_toggler = preservedAptData;
-                        toastr.success(`已從預設檔匯入 ${importedRules.length} 條 APT 規則`, 'Auto Prompt Toggler');
+                        toastr.success(`已從預設檔匯入 ${importedRules.length} 條 APT 規則${hasLlmInjector ? '與提示詞設置' : ''}`, 'Auto Prompt Toggler');
                     } else {
-                        // 使用者選擇捨棄，將資料從 result.data 移除，這樣存檔時就不會有規則
-                        delete result.data.extensions.auto_prompt_toggler;
-                        toastr.info('已捨棄預設檔附帶的 APT 規則', 'Auto Prompt Toggler');
+                        // 使用者選擇捨棄規則
+                        if (hasLlmInjector) {
+                            preservedAptData.rules = [];
+                            result.data.extensions.auto_prompt_toggler = preservedAptData;
+                            toastr.info('已捨棄預設檔附帶的 APT 規則，但保留了提示詞設置', 'Auto Prompt Toggler');
+                        } else {
+                            delete result.data.extensions.auto_prompt_toggler;
+                            toastr.info('已捨棄預設檔附帶的 APT 規則', 'Auto Prompt Toggler');
+                        }
                     }
                 } else {
-                    // 若規則解析失敗或為 0 條，清除殘留
-                    delete result.data.extensions.auto_prompt_toggler;
+                    // 若規則解析失敗或為 0 條
+                    if (hasLlmInjector) {
+                        preservedAptData.rules = [];
+                        result.data.extensions.auto_prompt_toggler = preservedAptData;
+                    } else {
+                        delete result.data.extensions.auto_prompt_toggler;
+                    }
                 }
             }
             });
