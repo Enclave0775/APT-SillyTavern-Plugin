@@ -919,8 +919,16 @@ function normalizeLlmInjectorResult(text) {
 }
 
 function getLlmInjectorModelSettingKeys(api) {
-    const key = LLM_INJECTOR_MODEL_SETTING_KEYS[String(api || '').trim()];
-    return key ? [key] : [];
+    const source = String(api || '').trim();
+    if (!source) return [];
+    const key = LLM_INJECTOR_MODEL_SETTING_KEYS[source];
+    if (key) return [key];
+    // Dynamic fallback: most chat completion sources follow the `${source}_model` naming convention.
+    const dynamicKey = `${source}_model`;
+    if (oai_settings && Object.prototype.hasOwnProperty.call(oai_settings, dynamicKey)) {
+        return [dynamicKey];
+    }
+    return [];
 }
 
 function getLlmInjectorStatusRequestBody(source) {
@@ -959,8 +967,12 @@ async function fetchLlmInjectorModels(settings) {
     if (hasDirectLlmInjectorConnection(settings)) {
         if (getLlmInjectorProvider(settings) === 'google_ai_studio') {
             const baseUrl = getGoogleAiStudioBaseUrl(settings);
-            const apiKey = encodeURIComponent(String(settings.apiKey || '').trim());
-            const response = await fetch(`${baseUrl}/models?key=${apiKey}`, { method: 'GET', cache: 'no-cache' });
+            // Send the API key via header instead of URL query to avoid leaking it in logs/history.
+            const response = await fetch(`${baseUrl}/models`, {
+                method: 'GET',
+                headers: { 'x-goog-api-key': String(settings.apiKey || '').trim() },
+                cache: 'no-cache',
+            });
             if (!response.ok) throw new Error(await response.text().catch(() => '') || response.statusText || `HTTP ${response.status}`);
             const data = await response.json();
             const googleModels = normalizeLlmInjectorModelList((data?.models || []).map(model => String(model?.name || model?.id || '').replace(/^models\//, '')));
@@ -1020,7 +1032,6 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
     if (!model) throw new Error('使用 Google AI Studio 時必須指定模型');
 
     const baseUrl = getGoogleAiStudioBaseUrl(settings);
-    const apiKey = encodeURIComponent(String(settings.apiKey || '').trim());
     const contents = [];
     
     const messages = Array.isArray(settings.customMessages) ? settings.customMessages : [];
@@ -1063,11 +1074,15 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
         body.systemInstruction = { parts: [{ text: String(settings.systemPrompt) }] };
     }
 
-    const endpoint = settings.useStreaming ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
+    const endpoint = settings.useStreaming ? 'streamGenerateContent?alt=sse' : 'generateContent';
 
-    const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:${endpoint}key=${apiKey}`, {
+    // Send the API key via header instead of URL query to avoid leaking it in logs/history.
+    const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': String(settings.apiKey || '').trim(),
+        },
         body: JSON.stringify(body),
         cache: 'no-cache',
     });
@@ -1078,32 +1093,59 @@ async function generateGoogleAiStudioLlmInjector(settings, prompt) {
     }
 
     if (settings.useStreaming) {
-        let content = '';
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        const text = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
-                        content += text;
-                    } catch (e) {
-                        // ignore parse errors for partial chunks
-                    }
-                }
-            }
-        }
-        return content;
+        return await readSseStreamContent(response, data =>
+            data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '');
     } else {
         const data = await response.json();
         const content = data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '';
         return content;
     }
+}
+
+/**
+ * Reads an SSE (text/event-stream) response and accumulates content extracted by the provided callback.
+ * Buffers incomplete lines across chunks to avoid dropping data when a JSON payload is split between reads.
+ * @param {Response} response Fetch response with a readable body
+ * @param {(data: any) => string} extractText Callback to extract text from each parsed SSE JSON payload
+ * @returns {Promise<string>} The accumulated content
+ */
+async function readSseStreamContent(response, extractText) {
+    let content = '';
+    let buffer = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+
+    const processLine = (line) => {
+        const trimmed = line.replace(/\r$/, '');
+        if (!trimmed.startsWith('data: ') || trimmed === 'data: [DONE]') return;
+        try {
+            const data = JSON.parse(trimmed.slice(6));
+            content += extractText(data) || '';
+        } catch (e) {
+            // Leave a trace for debugging instead of failing silently
+            console.debug('[APT] Skipped unparsable SSE line:', trimmed.slice(0, 200), e);
+        }
+    };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last (possibly incomplete) line in the buffer for the next chunk
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+            processLine(line);
+        }
+    }
+
+    // Flush any remaining buffered data
+    buffer += decoder.decode();
+    if (buffer) {
+        processLine(buffer);
+    }
+
+    return content;
 }
 
 async function generateDirectLlmInjector(settings, prompt) {
@@ -1159,27 +1201,7 @@ async function generateDirectLlmInjector(settings, prompt) {
     }
 
     if (settings.useStreaming) {
-        let content = '';
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        const delta = data?.choices?.[0]?.delta?.content || '';
-                        content += delta;
-                    } catch (e) {
-                        // ignore parse errors
-                    }
-                }
-            }
-        }
-        return content;
+        return await readSseStreamContent(response, data => data?.choices?.[0]?.delta?.content || '');
     } else {
         const data = await response.json();
         const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? '';
