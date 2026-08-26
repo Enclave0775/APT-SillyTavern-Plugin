@@ -1358,6 +1358,18 @@ async function onMessageSentDelay() {
     }
 }
 
+// 重新生成 (regenerate) / 刪除訊息：MESSAGE_DELETED 在 emit 前就已把訊息
+// 從 chat 陣列移除 (Generate 中先 chat.length-- 再 emit)，因此同步重算規則
+// 可保證「先開關 → 再生成正文」，不再與 MutationObserver + debounce 賽跑。
+function onMessageDeletedForApt() {
+    applyRulesNow();
+}
+
+// 編輯訊息後同步重算規則，讓開關狀態即時跟上編輯內容。
+function onMessageEditedForApt() {
+    applyRulesNow();
+}
+
 function getAvailablePrompts() {
     if (!promptManager) return [];
     
@@ -2597,6 +2609,12 @@ jQuery(async () => {
         }
         if (event_types.MESSAGE_SENT) {
             eventSource.on(event_types.MESSAGE_SENT, onMessageSentDelay);
+        }
+        if (event_types.MESSAGE_DELETED) {
+            eventSource.on(event_types.MESSAGE_DELETED, onMessageDeletedForApt);
+        }
+        if (event_types.MESSAGE_EDITED) {
+            eventSource.on(event_types.MESSAGE_EDITED, onMessageEditedForApt);
         }
         if (event_types.CHAT_COMPLETION_PROMPT_READY) {
             eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, cleanupLlmInjectorText);
