@@ -96,7 +96,6 @@ const APT_LANGUAGES = {
 };
 
 let chatObserver = null;
-let lastMessageId = null;
 let processTimeout = null;
 let lastRuleDebugState = null;
 const regexCache = new Map();
@@ -230,14 +229,7 @@ function getGlobalRules() {
 }
 
 function forceRecheck() {
-    lastMessageId = null;
-    const allRules = [
-        ...getGlobalRules(),
-        ...currentPresetRules
-    ];
-
-    const recentMessages = collectRecentMessagesForRules(allRules);
-    debouncedProcessText(recentMessages);
+    debouncedProcessText();
 }
 
 function isChatCompletionApiActive() {
@@ -328,16 +320,6 @@ function collectRecentMessagesForRules(allRules) {
     }
 
     return recentMessages;
-}
-
-function getLatestMessageId() {
-    if (typeof chat !== 'undefined' && Array.isArray(chat) && chat.length > 0) {
-        return `chat-${chat.length - 1}`;
-    }
-
-    const { messages } = getMessagesByMesId();
-    const lastMessageElement = messages[messages.length - 1];
-    return lastMessageElement?.getAttribute?.('mesid') || (messages.length > 0 ? `dom-msg-${messages.length - 1}` : null);
 }
 
 function clearRuleCaches() {
@@ -1343,7 +1325,31 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
     }
 }
 
+// 立即(同步)執行規則判定並套用提示詞開關。
+// 用於 MESSAGE_SENT：此時新訊息已 push 進 chat 陣列 (sendMessageAsUser 在 emit 前先 push)，
+// 因此可以保證「先觸發正則打開開關 → 再生成正文」的順序，不再與生成流程賽跑。
+function applyRulesNow() {
+    if (!isChatCompletionApiActive()) return;
+
+    if (processTimeout) {
+        clearTimeout(processTimeout);
+        processTimeout = null;
+    }
+
+    const allRules = [
+        ...getGlobalRules(),
+        ...currentPresetRules
+    ];
+
+    const recentMessages = collectRecentMessagesForRules(allRules);
+    processText(recentMessages);
+}
+
 async function onMessageSentDelay() {
+    // 訊息已進入 chat 陣列，立刻同步處理規則開關，
+    // 確保在 sendMessageAsUser 完成、正文開始生成之前完成切換。
+    applyRulesNow();
+
     if (needsDelayAfterInjection) {
         needsDelayAfterInjection = false;
         // Delay to allow APT and other regex plugins to process the injected text after it is sent
@@ -1968,9 +1974,19 @@ function renderRulesLists() {
     applyLanguageToSettings();
 }
 
-function debouncedProcessText(recentMessages) {
+function debouncedProcessText() {
     if (processTimeout) clearTimeout(processTimeout);
     processTimeout = setTimeout(() => {
+        processTimeout = null;
+        if (!isChatCompletionApiActive()) return;
+
+        // 在執行當下重新收集訊息，避免拿到觸發當下的過期資料
+        // (例如 forceRecheck 在注入時呼叫時，新訊息尚未進入 chat)。
+        const allRules = [
+            ...getGlobalRules(),
+            ...currentPresetRules
+        ];
+        const recentMessages = collectRecentMessagesForRules(allRules);
         processText(recentMessages);
     }, 200);
 }
@@ -2212,21 +2228,7 @@ function initObserver() {
     if (chatObserver) chatObserver.disconnect();
 
     chatObserver = new MutationObserver((mutations) => {
-        if (!isChatCompletionApiActive()) return;
-        const allRules = [
-            ...getGlobalRules(),
-            ...currentPresetRules
-        ];
-
-        const recentMessages = collectRecentMessagesForRules(allRules);
-
-        const currentMsgId = getLatestMessageId();
-
-        if (currentMsgId !== lastMessageId) {
-            lastMessageId = currentMsgId;
-        }
-
-        debouncedProcessText(recentMessages);
+        debouncedProcessText();
     });
 
     chatObserver.observe(chatContainer, { 
