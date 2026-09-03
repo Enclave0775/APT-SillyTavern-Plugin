@@ -4,7 +4,6 @@
     "description": "Automatically toggles Chat Completion Prompt entries based on message content.",
     "version": "3.5.3",
     "js": "index.js",
-    "generate_interceptor": "APT_LLM_INJECTOR_GENERATE_INTERCEPTOR",
     "css": "style.css",
     "homePage": "https://github.com/Enclave0775/APT-SillyTavern-Plugin"
 }
