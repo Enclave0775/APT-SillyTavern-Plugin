@@ -3,7 +3,7 @@ import { extension_settings, renderExtensionTemplateAsync } from '../../../exten
 import { download, getFileText, escapeHtml } from '../../../utils.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 import { initLlmInjector, renderLlmInjectorSettings, bindLlmInjectorSettings, onGenerationAfterCommandsForLlmInjector, cleanupLlmInjectorText } from './llm-injector.js';
-import { initI18n, t, getLanguage, setLanguage, applyLanguageToSettings } from './i18n.js';
+import { initI18n, t, fmt, getLanguage, setLanguage, applyLanguageToSettings } from './i18n.js';
 import { initSettingsStore, getGlobalProfiles, getCurrentGlobalProfileName, setCurrentGlobalProfileName, getGlobalRules, isChatCompletionApiActive, getOpenAiPresetManager, getCurrentPresetName, setCurrentPresetName, getCurrentPresetRules, setCurrentPresetRules, saveGlobalRules, savePresetRules, getNotificationsEnabled, setNotificationsEnabled, SETTINGS_KEY_GLOBAL, SETTINGS_KEY_GLOBAL_PROFILE } from './settings-store.js';
 import { initRulesEngine, forceRecheck, debouncedProcessText, clearRuleCaches, getRuleIncludeTriggers, getRuleExcludeTriggers, getRuleTriggerMode, getRuleConditionSummary, normalizeImportedRule, getAllRulesWithMeta, getRulePromptIds, onMessageSentDelay, onMessageDeletedForApt, onMessageEditedForApt, getLastRuleDebugState } from './rules-engine.js';
 import { initUi, openEditor, renderRulesLists, renderGlobalProfileSelect, renderControlledPromptSearch, renderRuleDebugStatus } from './ui.js';
@@ -78,13 +78,13 @@ function handleImportEvent(fileInputId, ruleType) {
                 }
                 
                 renderRulesLists();
-                toastr.success(`匯入成功，新增 ${rulesToImport.length} 條 ${ruleType === 'global' ? '全域' : ' Preset '} 規則`, 'Auto Prompt Toggler');
+                toastr.success(fmt(t('import_success'), rulesToImport.length, ruleType === 'global' ? t('scope_global') : 'Preset'), 'Auto Prompt Toggler');
             } else {
-                toastr.error('無效的規則檔案或檔案為空', 'Auto Prompt Toggler');
+                toastr.error(t('import_invalid'), 'Auto Prompt Toggler');
             }
         } catch (e) {
             console.error(e);
-            toastr.error('匯入失敗: ' + e.message, 'Auto Prompt Toggler');
+            toastr.error(fmt(t('import_failed'), e.message), 'Auto Prompt Toggler');
         }
         
         this.value = ''; 
@@ -111,7 +111,10 @@ jQuery(async () => {
 
     const settingsHtml = await renderExtensionTemplateAsync('third-party/APT-SillyTavern-Plugin', 'settings');
     $('#extensions_settings').append(settingsHtml);
-    initI18n({ onLanguageChanged: renderRulesLists });
+    initI18n({ onLanguageChanged: () => {
+        renderRulesLists();
+        renderLlmInjectorSettings();
+    }});
     initSettingsStore({ forceRecheck, clearRuleCaches });
     initRulesEngine({
         isChatCompletionApiActive,
@@ -187,8 +190,8 @@ jQuery(async () => {
         // Create an HTML element to be passed to callGenericPopup
         const popupContent = $(`
             <div>
-                <h3>新增全域設定檔</h3>
-                <input type="text" id="apt_new_profile_name" class="text_pole" placeholder="輸入設定檔名稱" style="width: 100%;">
+                <h3>${escapeHtml(t('add_profile_popup_title'))}</h3>
+                <input type="text" id="apt_new_profile_name" class="text_pole" placeholder="${escapeHtml(t('profile_name_ph'))}" style="width: 100%;">
             </div>
         `);
         
@@ -201,7 +204,7 @@ jQuery(async () => {
                 const cleanName = name.trim();
                 const profiles = getGlobalProfiles();
                 if (profiles[cleanName]) {
-                    toastr.error('設定檔名稱已存在');
+                    toastr.error(t('profile_exists'));
                     return;
                 }
                 profiles[cleanName] = [];
@@ -209,7 +212,7 @@ jQuery(async () => {
                 setCurrentGlobalProfileName(cleanName);
                 renderGlobalProfileSelect();
                 renderRulesLists();
-                toastr.success(`已建立設定檔: ${cleanName}`);
+                toastr.success(fmt(t('profile_created'), cleanName));
             }
         }
     });
@@ -218,7 +221,7 @@ jQuery(async () => {
         const current = getCurrentGlobalProfileName();
         const popupContent = $(`
             <div>
-                <h3>重新命名設定檔</h3>
+                <h3>${escapeHtml(t('rename_profile_popup_title'))}</h3>
                 <input type="text" id="apt_rename_profile_name" class="text_pole" value="${escapeHtml(current)}" style="width: 100%;">
             </div>
         `);
@@ -231,7 +234,7 @@ jQuery(async () => {
                 const cleanName = newName.trim();
                 const profiles = getGlobalProfiles();
                 if (profiles[cleanName]) {
-                    toastr.error('設定檔名稱已存在');
+                    toastr.error(t('profile_exists'));
                     return;
                 }
                 profiles[cleanName] = profiles[current];
@@ -240,7 +243,7 @@ jQuery(async () => {
                 setCurrentGlobalProfileName(cleanName);
                 renderGlobalProfileSelect();
                 renderRulesLists();
-                toastr.success(`已重新命名為: ${cleanName}`);
+                toastr.success(fmt(t('profile_renamed'), cleanName));
             }
         }
     });
@@ -251,12 +254,12 @@ jQuery(async () => {
         const keys = Object.keys(profiles);
         
         if (keys.length <= 1) {
-            toastr.error('無法刪除最後一個設定檔');
+            toastr.error(t('cannot_delete_last_profile'));
             return;
         }
         
         const confirmResult = await callGenericPopup(
-            `確定要刪除設定檔 <strong>${escapeHtml(current)}</strong> 嗎?`,
+            fmt(t('confirm_delete_profile'), escapeHtml(current)),
             POPUP_TYPE.CONFIRM,
             '',
             { okButton: t('delete'), cancelButton: t('cancel') }
@@ -268,7 +271,7 @@ jQuery(async () => {
             setCurrentGlobalProfileName(next);
             renderGlobalProfileSelect();
             renderRulesLists();
-            toastr.info(`已刪除設定檔: ${current}`);
+            toastr.info(fmt(t('profile_deleted'), current));
         }
     });
 
@@ -287,7 +290,7 @@ jQuery(async () => {
     });
     $(document).on('click.apt_global', '#apt_global_clear', async () => {
         const confirmResult = await callGenericPopup(
-            `確定要清空設定檔 <strong>${escapeHtml(getCurrentGlobalProfileName())}</strong> 的所有規則嗎?`,
+            fmt(t('confirm_clear_profile'), escapeHtml(getCurrentGlobalProfileName())),
             POPUP_TYPE.CONFIRM,
             '',
             { okButton: t('clear'), cancelButton: t('cancel') }
@@ -295,7 +298,7 @@ jQuery(async () => {
         if (confirmResult) {
             saveGlobalRules([]);
             renderRulesLists();
-            toastr.info('已清空全域規則', 'Auto Prompt Toggler');
+            toastr.info(t('global_rules_cleared'), 'Auto Prompt Toggler');
         }
     });
 
@@ -313,7 +316,7 @@ jQuery(async () => {
     });
     $(document).on('click.apt_preset', '#apt_preset_clear', async () => {
         const confirmResult = await callGenericPopup(
-            `確定要清空當前 Preset <strong>${escapeHtml(getCurrentPresetName())}</strong> 的所有規則嗎?`,
+            fmt(t('confirm_clear_preset'), escapeHtml(getCurrentPresetName())),
             POPUP_TYPE.CONFIRM,
             '',
             { okButton: t('clear'), cancelButton: t('cancel') }
@@ -322,7 +325,7 @@ jQuery(async () => {
             setCurrentPresetRules([]);
             savePresetRules();
             renderRulesLists();
-            toastr.info('已清空 Preset 規則', 'Auto Prompt Toggler');
+            toastr.info(t('preset_rules_cleared'), 'Auto Prompt Toggler');
         }
     });
 

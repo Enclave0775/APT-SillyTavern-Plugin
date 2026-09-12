@@ -1,6 +1,7 @@
 import { chat } from '../../../../script.js';
 import { promptManager } from '../../../openai.js';
 import { getNeedsDelayAfterInjection, resetNeedsDelayAfterInjection } from './llm-injector.js';
+import { t, fmt } from './i18n.js';
 
 let processTimeout = null;
 let lastRuleDebugState = null;
@@ -126,7 +127,7 @@ function getCompiledRegex(trigger, ruleId, flags = 'i') {
         if (!invalidRegexWarnings.has(warningKey)) {
             invalidRegexWarnings.add(warningKey);
             console.error(`[AutoPromptToggler] Invalid regex in rule ${ruleId}:`, trigger, e);
-            toastr?.error?.(`規則 ${ruleId} 的 Regex 無效，已略過此規則`, 'Auto Prompt Toggler');
+            toastr?.error?.(fmt(t('regex_invalid_skipped'), ruleId), 'Auto Prompt Toggler');
         }
         regexCache.set(cacheKey, null);
         return null;
@@ -197,7 +198,7 @@ function getRuleConditionSummary(rule) {
     const includeTriggers = getRuleIncludeTriggers(rule);
     const excludeTriggers = getRuleExcludeTriggers(rule);
     const modeText = getRuleTriggerMode(rule) === 'all' ? 'AND' : 'OR';
-    let summary = includeTriggers.length > 0 ? includeTriggers.join(` ${modeText} `) : '(無觸發條件)';
+    let summary = includeTriggers.length > 0 ? includeTriggers.join(` ${modeText} `) : t('no_trigger_condition');
     if (excludeTriggers.length > 0) {
         summary += ` / NOT (${excludeTriggers.join(' OR ')})`;
     }
@@ -370,7 +371,7 @@ function processText(recentMessages) {
             evaluatedCount: 0,
             matchedCount: 0,
             changedCount: 0,
-            note: '目前不是 Chat Completion / OpenAI 類型 API，APT 未執行規則判定。',
+            note: t('debug_note_not_cc_api'),
             rules: [],
             promptActions: [],
         };
@@ -490,7 +491,7 @@ function processText(recentMessages) {
 
         if (getNotificationsEnabled() && targetState === true) {
             const prompt = promptManager.getPromptById(promptId);
-            toastr.info(`開啟提示詞: ${prompt?.name || promptId}`, 'Auto Prompt Toggler');
+            toastr.info(fmt(t('prompt_enabled_toast'), prompt?.name || promptId), 'Auto Prompt Toggler');
         }
     }
 

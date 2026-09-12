@@ -2,6 +2,7 @@
 // No DOM/UI dependencies: provider detection, model listing, template rendering, and generation.
 import { chat, generateRaw, getRequestHeaders, main_api } from '../../../../script.js';
 import { model_list, oai_settings } from '../../../openai.js';
+import { t } from './i18n.js';
 
 // Kept in sync with DEFAULT_LLM_INJECTOR_SETTINGS.responseLength; used only as a fallback.
 const DEFAULT_RESPONSE_LENGTH = 80;
@@ -180,7 +181,7 @@ async function fetchLlmInjectorModels(settings) {
             const data = await response.json();
             const googleModels = normalizeLlmInjectorModelList((data?.models || []).map(model => String(model?.name || model?.id || '').replace(/^models\//, '')));
             if (googleModels.length > 0) return googleModels;
-            throw new Error('Google AI Studio 沒有回傳可用模型列表');
+            throw new Error(t('llm_provider_err_no_models_google'));
         }
 
         const baseUrl = trimLlmInjectorBaseUrl(settings.baseUrl);
@@ -197,7 +198,7 @@ async function fetchLlmInjectorModels(settings) {
         const data = await response.json();
         const directModels = normalizeLlmInjectorModelList(data?.data || data?.models || data);
         if (directModels.length > 0) return directModels;
-        throw new Error('獨立端點沒有回傳可用模型列表');
+        throw new Error(t('llm_provider_err_no_models_custom'));
     }
 
     const source = getLlmInjectorSource(settings);
@@ -214,7 +215,7 @@ async function fetchLlmInjectorModels(settings) {
 
     const responseData = await response.json();
     if (responseData?.error) {
-        throw new Error(responseData.error.message || responseData.error || '後端回傳錯誤');
+        throw new Error(responseData.error.message || responseData.error || t('llm_provider_err_backend'));
     }
 
     const fetchedModels = normalizeLlmInjectorModelList(responseData?.data);
@@ -227,13 +228,13 @@ async function fetchLlmInjectorModels(settings) {
         return fallbackModels;
     }
 
-    throw new Error('沒有取得可用模型列表；請確認 API 金鑰/反代/端點設定是否已連線');
+    throw new Error(t('llm_provider_err_no_model_list'));
 }
 
 
 async function generateGoogleAiStudioLlmInjector(settings, prompt) {
     const model = String(settings.model || '').trim();
-    if (!model) throw new Error('使用 Google AI Studio 時必須指定模型');
+    if (!model) throw new Error(t('llm_provider_err_model_required_google'));
 
     const baseUrl = getGoogleAiStudioBaseUrl(settings);
     const contents = [];
@@ -362,7 +363,7 @@ async function generateDirectLlmInjector(settings, prompt) {
     const baseUrl = trimLlmInjectorBaseUrl(settings.baseUrl);
     const model = String(settings.model || '').trim();
     if (!model) {
-        throw new Error('使用 OpenAI 相容自定義 API 時必須指定模型');
+        throw new Error(t('llm_provider_err_model_required_openai'));
     }
 
     const requestMessages = [];

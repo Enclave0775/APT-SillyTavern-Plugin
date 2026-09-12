@@ -1,7 +1,7 @@
 import { renderExtensionTemplateAsync } from '../../../extensions.js';
 import { promptManager } from '../../../openai.js';
 import { download, escapeHtml } from '../../../utils.js';
-import { t, applyLanguageToSettings, localizeEditor } from './i18n.js';
+import { t, fmt, applyLanguageToSettings, localizeEditor } from './i18n.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 import { normalizeTriggerList } from './rules-engine.js';
 
@@ -158,49 +158,49 @@ function renderRuleDebugStatus() {
 
     panel.empty();
     if (!getLastRuleDebugState()) {
-        panel.append('<div class="apt-rule-debug-empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>');
+        panel.append(`<div class="apt-rule-debug-empty">${escapeHtml(t('debug_empty'))}</div>`);
         return;
     }
 
     const state = getLastRuleDebugState();
     panel.append(`
         <div class="apt-rule-debug-meta">
-            <div><strong>檢查時間：</strong>${escapeHtml(state.checkedAt || '')}</div>
-            <div><strong>檢查訊息：</strong>${Number(state.messageCount || 0)} 則；<strong>有效規則：</strong>${Number(state.evaluatedCount || 0)} 條；<strong>命中：</strong>${Number(state.matchedCount || 0)} 條；<strong>Prompt 變更：</strong>${Number(state.changedCount || 0)} 個</div>
+            <div><strong>${t('debug_checked_at')}</strong>${escapeHtml(state.checkedAt || '')}</div>
+            <div>${escapeHtml(fmt(t('debug_meta_line'), Number(state.messageCount || 0), Number(state.evaluatedCount || 0), Number(state.matchedCount || 0), Number(state.changedCount || 0)))}</div>
             ${state.note ? `<div>${escapeHtml(state.note)}</div>` : ''}
         </div>
     `);
 
     const matchedRules = (state.rules || []).filter(record => record.matched || record.invalid);
-    panel.append('<div class="apt-rule-debug-section"><strong>規則命中 / 異常</strong></div>');
+    panel.append(`<div class="apt-rule-debug-section"><strong>${escapeHtml(t('debug_match_section'))}</strong></div>`);
     if (matchedRules.length === 0) {
-        panel.append('<div class="apt-rule-debug-empty">沒有規則命中，也沒有 Regex 異常。</div>');
+        panel.append(`<div class="apt-rule-debug-empty">${escapeHtml(t('debug_no_match'))}</div>`);
     } else {
         matchedRules.forEach(record => {
-            const statusText = record.invalid ? 'Regex 異常，已略過' : '命中';
+            const statusText = record.invalid ? t('debug_invalid_status') : t('debug_matched_status');
             panel.append(`
                 <div class="apt-rule-debug-row ${getRuleDebugStatusClass(record)}">
                     <div><strong>${escapeHtml(statusText)}</strong>｜${escapeHtml(record.scopeLabel)}｜${escapeHtml(record.ruleName)}</div>
-                    <div class="apt-rule-debug-small">條件：${escapeHtml(record.conditionSummary)}</div>
-                    ${record.matchedText ? `<div class="apt-rule-debug-small">命中文字：${escapeHtml(record.matchedText)}</div>` : ''}
+                    <div class="apt-rule-debug-small">${t('debug_condition')}${escapeHtml(record.conditionSummary)}</div>
+                    ${record.matchedText ? `<div class="apt-rule-debug-small">${escapeHtml(t('debug_matched_text'))}${escapeHtml(record.matchedText)}</div>` : ''}
                 </div>
             `);
         });
     }
 
-    panel.append('<div class="apt-rule-debug-section"><strong>Prompt 切換結果</strong></div>');
+    panel.append(`<div class="apt-rule-debug-section"><strong>${escapeHtml(t('debug_prompt_section'))}</strong></div>`);
     const actions = state.promptActions || [];
     if (actions.length === 0) {
-        panel.append('<div class="apt-rule-debug-empty">沒有任何 prompt 需要切換或維持狀態。</div>');
+        panel.append(`<div class="apt-rule-debug-empty">${escapeHtml(t('debug_no_prompt_actions'))}</div>`);
     } else {
         actions.forEach(action => {
             const stateClass = action.targetState ? 'apt-rule-debug-prompt-on' : 'apt-rule-debug-prompt-off';
             const stateText = action.targetState ? 'ON' : 'OFF';
-            const changedText = action.changed ? '已變更' : '已是目標狀態';
+            const changedText = action.changed ? t('debug_changed') : t('debug_already_state');
             panel.append(`
                 <div class="apt-rule-debug-row">
                     <div><span class="${stateClass}">${stateText}</span>｜${escapeHtml(action.promptName)} <span class="apt-rule-debug-small">(${escapeHtml(action.promptId)})</span></div>
-                    <div class="apt-rule-debug-small">${escapeHtml(changedText)}；來源：${escapeHtml(action.sourceRule || '')}</div>
+                    <div class="apt-rule-debug-small">${escapeHtml(changedText)}${escapeHtml(t('debug_source'))}${escapeHtml(action.sourceRule || '')}</div>
                 </div>
             `);
         });
@@ -209,7 +209,7 @@ function renderRuleDebugStatus() {
 
 async function openEditor(ruleType = 'global', ruleIndex = -1) {
     if (!isChatCompletionApiActive()) {
-        toastr.warning('APT 目前只支援 Chat Completion / OpenAI 類型的提示詞預設。', 'Auto Prompt Toggler');
+        toastr.warning(t('editor_only_cc_warning'), 'Auto Prompt Toggler');
         return;
     }
 
@@ -430,7 +430,7 @@ async function openEditor(ruleType = 'global', ruleIndex = -1) {
             }
             renderRulesLists();
         } else {
-            toastr.warning('必須至少在一個觸發條件中選擇目標提示詞', 'Auto Prompt Toggler');
+            toastr.warning(t('editor_no_target_warning'), 'Auto Prompt Toggler');
         }
     }
 }
@@ -481,21 +481,21 @@ function renderSingleList(rules, listElementId, ruleType) {
         let promptDisplay = '';
         const totalCount = matchNames.length + noMatchNames.length;
         if (totalCount > 1) {
-            promptDisplay = `控制 ${totalCount} 個提示詞`;
+            promptDisplay = fmt(t('summary_controls_n'), totalCount);
         } else if (matchNames.length === 1) {
-            promptDisplay = `(符合) ${matchNames[0]}`;
+            promptDisplay = fmt(t('summary_match_one'), matchNames[0]);
         } else if (noMatchNames.length === 1) {
-            promptDisplay = `(不符) ${noMatchNames[0]}`;
+            promptDisplay = fmt(t('summary_nomatch_one'), noMatchNames[0]);
         }
 
-        const sourceText = rule.source === 'raw' ? '[原始] ' : '';
+        const sourceText = rule.source === 'raw' ? t('tag_raw') : '';
         let targetText = '';
         if (rule.target === 'user_input') targetText = '[User] ';
-        else if (rule.target === 'both') targetText = '[兩者] ';
+        else if (rule.target === 'both') targetText = t('tag_both');
         
         let depthText = '';
         if (rule.depth !== undefined) {
-            depthText = rule.depth === 0 ? '[全部訊息] ' : (rule.depth === 1 ? '' : `[最近 ${rule.depth} 則] `);
+            depthText = rule.depth === 0 ? t('tag_all_messages') : (rule.depth === 1 ? '' : fmt(t('tag_recent_n'), rule.depth));
         }
         
         const conditionSummary = getRuleConditionSummary(rule);
@@ -504,9 +504,9 @@ function renderSingleList(rules, listElementId, ruleType) {
         
         item.find('.apt-rule-summary').text(displayText);
         
-        let detailsStr = `詳細條件: [${rule.target || 'ai_output'}][${rule.source || 'display'}]${depthText} ${conditionSummary}\n`;
-        if (matchNames.length > 0) detailsStr += `\n[符合時開啟, 不符時關閉]:\n- ${matchNames.join('\n- ')}`;
-        if (noMatchNames.length > 0) detailsStr += `\n\n[不符時開啟, 符合時關閉]:\n- ${noMatchNames.join('\n- ')}`;
+        let detailsStr = `${t('details_header')}[${rule.target || 'ai_output'}][${rule.source || 'display'}]${depthText} ${conditionSummary}\n`;
+        if (matchNames.length > 0) detailsStr += `\n${t('details_match')}\n- ${matchNames.join('\n- ')}`;
+        if (noMatchNames.length > 0) detailsStr += `\n\n${t('details_nomatch')}\n- ${noMatchNames.join('\n- ')}`;
 
         const titleText = rule.name ? `${rule.name}\n\n${detailsStr}` : detailsStr;
         item.find('.apt-rule-summary').attr('title', titleText.trim());
@@ -527,7 +527,7 @@ function renderSingleList(rules, listElementId, ruleType) {
         
         item.find('.rule-delete').on('click', (e) => {
             e.stopPropagation();
-            if (confirm(`確定要刪除規則 "${displayText}" 嗎?`)) {
+            if (confirm(fmt(t('confirm_delete_rule'), displayText))) {
                 rules.splice(index, 1);
                 if (ruleType === 'global') saveGlobalRules(rules);
                 else savePresetRules();
@@ -545,16 +545,16 @@ function renderSingleList(rules, listElementId, ruleType) {
         const moveBtn = item.find('.rule-move');
         if (ruleType === 'global') {
             moveBtn.addClass('fa-solid fa-globe');
-            moveBtn.attr('title', '移動至 Preset');
+            moveBtn.attr('title', t('move_to_preset'));
         } else {
             moveBtn.addClass('fa-solid fa-sliders');
-            moveBtn.attr('title', '移動至全域');
+            moveBtn.attr('title', t('move_to_global'));
         }
 
         moveBtn.on('click', (e) => {
             e.stopPropagation();
-            const targetType = ruleType === 'global' ? 'Preset' : '全域';
-            if (confirm(`確定要將此規則移動到 ${targetType} 嗎?`)) {
+            const targetType = ruleType === 'global' ? 'Preset' : t('scope_global');
+            if (confirm(fmt(t('confirm_move_rule'), targetType))) {
                 if (ruleType === 'global') {
                     // Global -> Preset
                     getCurrentPresetRules().push(rule);
@@ -570,7 +570,7 @@ function renderSingleList(rules, listElementId, ruleType) {
                     savePresetRules();
                 }
                 renderRulesLists();
-                toastr.success(`已移動至 ${targetType}`);
+                toastr.success(fmt(t('moved_toast'), targetType));
             }
         });
         

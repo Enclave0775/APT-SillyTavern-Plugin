@@ -7,7 +7,7 @@
         <div class="inline-drawer-content">
             <div class="inline-drawer apt-basic-settings-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <strong>設定</strong>
+                    <strong data-apt-i18n="settings_title">設定</strong>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content apt-basic-settings-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
@@ -29,20 +29,20 @@
 
             <div class="inline-drawer apt-llm-injector-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <strong>LLM 場景注入</strong>
+                    <strong data-apt-i18n="llm_injector_title">LLM 場景注入</strong>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
             <div class="inline-drawer-content apt-llm-injector-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
-                    <button id="apt_llm_injector_reset" class="menu_button" type="button" style="padding: 3px 8px;">重設</button>
+                    <button id="apt_llm_injector_reset" class="menu_button" type="button" style="padding: 3px 8px;" data-apt-i18n="llm_reset">重設</button>
                 </div>
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                     <input type="checkbox" id="apt_llm_injector_enabled">
-                    <span>啟用送出前 LLM 場景判斷，並把結果附加到使用者輸入後方</span>
+                    <span data-apt-i18n="llm_enabled_label">啟用送出前 LLM 場景判斷，並把結果附加到使用者輸入後方</span>
                 </label>
 
                 <div style="display: grid; grid-template-columns: minmax(110px, 160px) 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
-                    <label for="apt_llm_injector_provider">LLM 供應商</label>
+                    <label for="apt_llm_injector_provider" data-apt-i18n="llm_provider">LLM 供應商</label>
                     <select id="apt_llm_injector_provider" class="text_pole">
                         <option value="sillytavern">沿用 SillyTavern 目前主 API</option>
                         <option value="openai_compatible">OpenAI 相容（自定義）</option>
@@ -52,59 +52,59 @@
                     <input id="apt_llm_injector_api" type="hidden">
 
 
-                    <label for="apt_llm_injector_base_url" class="apt-llm-base-url-row">獨立 Base URL</label>
-                    <input id="apt_llm_injector_base_url" class="text_pole apt-llm-base-url-row" type="text" placeholder="例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1">
+                    <label for="apt_llm_injector_base_url" class="apt-llm-base-url-row" data-apt-i18n="llm_base_url">獨立 Base URL</label>
+                    <input id="apt_llm_injector_base_url" class="text_pole apt-llm-base-url-row" type="text" placeholder="例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1" data-apt-i18n-placeholder="llm_base_url_ph_openai">
 
-                    <label for="apt_llm_injector_api_key" class="apt-llm-api-key-row">獨立 API Key</label>
-                    <input id="apt_llm_injector_api_key" class="text_pole apt-llm-api-key-row" type="password" autocomplete="off" placeholder="只給場景判斷用；沿用模式可留空">
+                    <label for="apt_llm_injector_api_key" class="apt-llm-api-key-row" data-apt-i18n="llm_api_key">獨立 API Key</label>
+                    <input id="apt_llm_injector_api_key" class="text_pole apt-llm-api-key-row" type="password" autocomplete="off" placeholder="只給場景判斷用；沿用模式可留空" data-apt-i18n-placeholder="llm_api_key_ph">
 
-                    <label for="apt_llm_injector_model">獨立模型</label>
-                    <input id="apt_llm_injector_model" class="text_pole" type="text" placeholder="選填；OpenAI/chat completion 類型可填模型 ID，例如 gpt-4o-mini、openrouter/auto">
+                    <label for="apt_llm_injector_model" data-apt-i18n="llm_model">獨立模型</label>
+                    <input id="apt_llm_injector_model" class="text_pole" type="text" placeholder="選填；OpenAI/chat completion 類型可填模型 ID，例如 gpt-4o-mini、openrouter/auto" data-apt-i18n-placeholder="llm_model_ph_openai">
 
-                    <label for="apt_llm_injector_model_select">可用模型</label>
+                    <label for="apt_llm_injector_model_select" data-apt-i18n="llm_available_models">可用模型</label>
                     <div style="display: flex; gap: 6px; align-items: center; min-width: 0;">
                         <select id="apt_llm_injector_model_select" class="text_pole" style="flex: 1; min-width: 0;">
                             <option value="">先拉取模型列表...</option>
                         </select>
-                        <button id="apt_llm_injector_fetch_models" class="menu_button" type="button" style="padding: 3px 8px; white-space: nowrap;">拉取模型</button>
+                        <button id="apt_llm_injector_fetch_models" class="menu_button" type="button" style="padding: 3px 8px; white-space: nowrap;" data-apt-i18n="llm_fetch_models">拉取模型</button>
                     </div>
 
-                    <label for="apt_llm_injector_response_length">回應長度</label>
+                    <label for="apt_llm_injector_response_length" data-apt-i18n="llm_response_length">回應長度</label>
                     <input id="apt_llm_injector_response_length" class="text_pole" type="number" min="1" step="1">
 
-                    <label for="apt_llm_injector_recent_count">最近對話則數</label>
+                    <label for="apt_llm_injector_recent_count" data-apt-i18n="llm_recent_count">最近對話則數</label>
                     <input id="apt_llm_injector_recent_count" class="text_pole" type="number" min="0" step="1">
                 </div>
 
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                     <input type="checkbox" id="apt_llm_injector_include_user">
-                    <span>需要使用者輸入非空才執行</span>
+                    <span data-apt-i18n="llm_include_user">需要使用者輸入非空才執行</span>
                 </label>
 
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;" class="apt-llm-streaming-row">
                     <input type="checkbox" id="apt_llm_injector_use_streaming">
-                    <span>啟用流式傳輸 (Streaming) 以繞過部分 API 審查，並在背景接收完整回覆後再判定</span>
+                    <span data-apt-i18n="llm_streaming">啟用流式傳輸 (Streaming) 以繞過部分 API 審查，並在背景接收完整回覆後再判定</span>
                 </label>
 
                 <div style="margin-top: 8px; margin-bottom: 8px;">
-                    <label for="apt_llm_injector_cleanup_regex" style="display: block; margin-bottom: 4px;">發送給主模型前，消除匹配此正則表達式的字串 (每行一個)</label>
-                    <textarea id="apt_llm_injector_cleanup_regex" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;" placeholder="<scene>.*?<\/scene>\n*&#10;<cot_flags>.*?<\/cot_flags>\n*"></textarea>
+                    <label for="apt_llm_injector_cleanup_regex" style="display: block; margin-bottom: 4px;" data-apt-i18n="llm_cleanup_regex">發送給主模型前，消除匹配此正則表達式的字串 (每行一個)</label>
+                    <textarea id="apt_llm_injector_cleanup_regex" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;" placeholder="<scene>.*?<\/scene>\n*&#10;<cot_flags>.*?<\/cot_flags>\n*" data-apt-i18n-placeholder="llm_cleanup_regex_ph"></textarea>
                 </div>
                 
                 <details style="margin-top: 8px; margin-bottom: 8px; border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
-                    <summary><strong>提示詞設置 (Custom Prompts)</strong></summary>
-                    <small style="display: block; margin-bottom: 8px; color: var(--SmartThemeQuoteColor);">
+                    <summary><strong data-apt-i18n="llm_custom_prompts_title">提示詞設置 (Custom Prompts)</strong></summary>
+                    <small style="display: block; margin-bottom: 8px; color: var(--SmartThemeQuoteColor);" data-apt-i18n="llm_custom_prompts_help">
                         此處設定的訊息會依序作為判斷場景用的提示詞。可用變數：<code>&#123;&#123;userInput&#125;&#125;</code>、<code>&#123;&#123;recentMessages&#125;&#125;</code>、<code>&#123;&#123;random::a,b,c&#125;&#125;</code>、<code>&#123;&#123;roll 1d20&#125;&#125;</code>
                     </small>
                     <div id="apt_llm_injector_custom_messages_container" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
                         <!-- Dynamic messages will be added here -->
                     </div>
-                    <button id="apt_llm_injector_add_custom_message" class="menu_button fa-solid fa-plus" type="button" style="margin-top: 8px; width: 100%;"> 新增訊息</button>
+                    <button id="apt_llm_injector_add_custom_message" class="menu_button fa-solid fa-plus" type="button" style="margin-top: 8px; width: 100%;" data-apt-i18n="llm_add_custom_message"> 新增訊息</button>
                 </details>
 
-                <label for="apt_llm_injector_injection_template" style="display: block; margin-top: 8px;">附加到輸入後方的模板</label>
+                <label for="apt_llm_injector_injection_template" style="display: block; margin-top: 8px;" data-apt-i18n="llm_injection_template">附加到輸入後方的模板</label>
                 <textarea id="apt_llm_injector_injection_template" class="text_pole textarea_compact" rows="2" style="width: 100%; box-sizing: border-box;"></textarea>
-                <small style="display: block; margin-top: 6px; color: var(--SmartThemeQuoteColor);">
+                <small style="display: block; margin-top: 6px; color: var(--SmartThemeQuoteColor);" data-apt-i18n="llm_injection_template_help">
                     可用變數：<code>&#123;&#123;userInput&#125;&#125;</code>、<code>&#123;&#123;recentMessages&#125;&#125;</code>、<code>&#123;&#123;result&#125;&#125;</code>、<code>&#123;&#123;random::a,b,c&#125;&#125;</code>、<code>&#123;&#123;roll 1d20&#125;&#125;</code>。預設會附加 <code>[APT_SCENE: 標籤]</code>，你可以建立 APT 規則偵測這段文字來觸發提示詞條目。<br>
                     「LLM 供應商」可選：沿用 SillyTavern、OpenAI 相容自定義、Google AI Studio / Gemini。<br>
                     OpenAI 相容模式會呼叫 <code>{Base URL}/chat/completions</code> 與 <code>{Base URL}/models</code>；Google AI Studio 會呼叫 Gemini <code>generateContent</code> 與 <code>/models</code>。<br>
@@ -117,7 +117,7 @@
             
             <div class="inline-drawer apt-rules-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <strong>規則管理</strong>
+                    <strong data-apt-i18n="rules_management_title">規則管理</strong>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content apt-rules-panel" style="display: none; width: 100%; padding: 8px; box-sizing: border-box;">
@@ -141,7 +141,7 @@
             </div>
             
             <div id="apt_global_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 15px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
-                <div style="font-style: italic; color: gray; text-align: center;">暫無全域規則</div>
+                <div style="font-style: italic; color: gray; text-align: center;" data-apt-i18n="no_global_rules">暫無全域規則</div>
             </div>
 
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
@@ -154,7 +154,7 @@
                 </div>
             </div>
             <div id="apt_preset_rules_list" style="width: 100%; border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px; max-height: 200px; overflow-y: auto; background-color: var(--background-color-secondary); border-radius: 5px;">
-                <div style="font-style: italic; color: gray; text-align: center;">暫無 Preset 規則</div>
+                <div style="font-style: italic; color: gray; text-align: center;" data-apt-i18n="no_preset_rules">暫無 Preset 規則</div>
             </div>
 
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
@@ -167,17 +167,17 @@
             </div>
 
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                <strong id="apt_rule_debug_title">最近一次規則判定狀態</strong>
+                <strong id="apt_rule_debug_title" data-apt-i18n="debug_section_title">最近一次規則判定狀態</strong>
             </div>
             <div id="apt_rule_debug_panel" class="apt-rule-debug-panel">
-                <div class="apt-rule-debug-empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>
+                <div class="apt-rule-debug-empty" data-apt-i18n="debug_empty">尚未執行規則判定。送出訊息或收到新回覆後會顯示最近一次命中與切換結果。</div>
             </div>
 
             <div class="apt-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                <strong id="apt_llm_log_title">最近一次 LLM 場景注入紀錄 (Log)</strong>
+                <strong id="apt_llm_log_title" data-apt-i18n="llm_log_title">最近一次 LLM 場景注入紀錄 (Log)</strong>
             </div>
             <div id="apt_llm_log_panel" class="apt-rule-debug-panel" style="font-family: monospace; white-space: pre-wrap; font-size: 0.9em; max-height: 300px; overflow-y: auto;">
-                <div class="apt-rule-debug-empty">尚未發送任何 LLM 場景注入請求。</div>
+                <div class="apt-rule-debug-empty" data-apt-i18n="llm_log_empty">尚未發送任何 LLM 場景注入請求。</div>
             </div>
                 </div>
             </div>

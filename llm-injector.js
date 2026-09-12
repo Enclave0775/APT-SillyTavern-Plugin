@@ -4,6 +4,7 @@ import { saveSettingsDebounced, stopGeneration, activateSendButtons, setGenerati
 import { extension_settings } from '../../../extensions.js';
 import { escapeHtml } from '../../../utils.js';
 import { getLlmInjectorProvider, fetchLlmInjectorModels, formatRecentMessagesForLlmInjector, applyLlmInjectorTemplate, normalizeLlmInjectorResult, generateRawForLlmInjector } from './llm-provider.js';
+import { t, fmt } from './i18n.js';
 
 const SETTINGS_KEY_LLM_INJECTOR = 'auto_prompt_toggler_llm_injector';
 
@@ -21,12 +22,19 @@ const DEFAULT_LLM_INJECTOR_SETTINGS = {
     customField1: '',
     customField2: '',
     customMessages: [],
-    systemPrompt: '你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。',
-    promptTemplate: `請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`,
+    systemPrompt: t('llm_default_prompt_system'),
+    promptTemplate: t('llm_default_prompt_user'),
     injectionTemplate: '\n\n[APT_SCENE: {{result}}]',
     cleanupRegex: '<scene>.*?<\\/scene>\\n*|<cot_flags>.*?<\\/cot_flags>\\n*',
     useStreaming: false,
 };
+
+function getLocalizedDefaultLlmInjectorSettings() {
+    const defaults = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+    defaults.systemPrompt = t('llm_default_prompt_system');
+    defaults.promptTemplate = t('llm_default_prompt_user');
+    return defaults;
+}
 
 let llmInjectorBusy = false;
 let needsDelayAfterInjection = false;
@@ -58,7 +66,7 @@ function initLlmInjector(deps) {
 function getLlmInjectorSettings() {
     const current = extension_settings[SETTINGS_KEY_LLM_INJECTOR];
     if (!current || typeof current !== 'object' || Array.isArray(current)) {
-        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = getLocalizedDefaultLlmInjectorSettings();
         saveSettingsDebounced();
     } else {
         const migratedProvider = current.provider || (current.baseUrl || current.apiKey ? 'openai_compatible' : DEFAULT_LLM_INJECTOR_SETTINGS.provider);
@@ -126,7 +134,7 @@ async function savePresetLlmInjectorSettings(settings) {
         });
     } catch (e) {
         console.error('[APT] Error saving preset LLM injector settings to file:', e);
-        toastr.error('儲存 Preset LLM 場景注入設定失敗', 'Auto Prompt Toggler');
+        toastr.error(t('llm_save_preset_failed'), 'Auto Prompt Toggler');
     }
 }
 
@@ -190,8 +198,13 @@ function renderCustomMessagesUI() {
     const template = $('#apt_llm_injector_custom_message_template').html();
     messages.forEach((msg, index) => {
         const item = $(template);
-        item.find('.apt-custom-message-role').val(msg.role || 'system');
+        const roleSelect = item.find('.apt-custom-message-role');
+        roleSelect.val(msg.role || 'system');
+        roleSelect.find('option[value="system"]').text(t('role_system'));
+        roleSelect.find('option[value="user"]').text(t('role_user'));
+        roleSelect.find('option[value="assistant"]').text(t('role_assistant'));
         item.find('.apt-custom-message-content').val(msg.content || '');
+        item.find('.apt-custom-message-delete').attr('title', t('delete'));
         
         item.find('.apt-custom-message-delete').on('click', function() {
             $(this).closest('.apt-custom-message-item').remove();
@@ -237,7 +250,7 @@ function renderLlmInjectorModelOptions(models = [], selectedModel = '') {
     if (!select.length) return;
 
     select.empty();
-    select.append(new Option(models.length ? '選擇模型以回填...' : '先拉取模型列表...', ''));
+    select.append(new Option(models.length ? t('llm_model_select_choose') : t('llm_model_select_empty'), ''));
 
     const uniqueModels = [...new Set((Array.isArray(models) ? models : [])
         .map(model => typeof model === 'string' ? model : model?.id)
@@ -302,33 +315,33 @@ function bindLlmInjectorSettings() {
 
     $('#apt_llm_injector_fetch_models').off('click.apt_llm').on('click.apt_llm', async () => {
         const button = $('#apt_llm_injector_fetch_models');
-        button.prop('disabled', true).text('拉取中...');
+        button.prop('disabled', true).text(t('llm_fetching'));
         try {
             const models = await fetchLlmInjectorModels(getEffectiveLlmInjectorSettings());
             saveLlmInjectorSettings({ modelOptions: models });
             renderLlmInjectorModelOptions(models, getEffectiveLlmInjectorSettings().model || '');
-            toastr.success(`已拉取 ${models.length} 個模型`, 'Auto Prompt Toggler');
+            toastr.success(fmt(t('llm_fetched_models'), models.length), 'Auto Prompt Toggler');
         } catch (e) {
             console.error('[APT] Failed to fetch LLM injector models:', e);
-            toastr.error(`拉取模型失敗: ${e.message || e}`, 'Auto Prompt Toggler');
+            toastr.error(fmt(t('llm_fetch_failed'), e.message || e), 'Auto Prompt Toggler');
         } finally {
-            button.prop('disabled', false).text('拉取模型');
+            button.prop('disabled', false).text(t('llm_fetch_models'));
         }
     });
 
     $('#apt_llm_injector_reset').off('click.apt_llm').on('click.apt_llm', () => {
         if (shouldSaveLlmInjectorSettingsToPreset()) {
-            currentPresetLlmInjectorSettings = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+            currentPresetLlmInjectorSettings = getLocalizedDefaultLlmInjectorSettings();
             savePresetLlmInjectorSettings(currentPresetLlmInjectorSettings);
             renderLlmInjectorSettings();
-            toastr.info('已重設目前 Preset 的 LLM 場景注入設定', 'Auto Prompt Toggler');
+            toastr.info(t('llm_reset_preset_done'), 'Auto Prompt Toggler');
             return;
         }
 
-        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = JSON.parse(JSON.stringify(DEFAULT_LLM_INJECTOR_SETTINGS));
+        extension_settings[SETTINGS_KEY_LLM_INJECTOR] = getLocalizedDefaultLlmInjectorSettings();
         saveSettingsDebounced();
         renderLlmInjectorSettings();
-        toastr.info('已重設 LLM 場景注入設定', 'Auto Prompt Toggler');
+        toastr.info(t('llm_reset_done'), 'Auto Prompt Toggler');
     });
 }
 
@@ -342,11 +355,11 @@ function updateLlmInjectorProviderUi() {
     $('.apt-llm-api-key-row').toggle(direct);
     $('.apt-llm-streaming-row').toggle(direct);
     $('#apt_llm_injector_base_url').attr('placeholder', google
-        ? '選填；預設 https://generativelanguage.googleapis.com/v1beta'
-        : '例如 https://api.openai.com/v1 或 https://openrouter.ai/api/v1');
+        ? t('llm_base_url_ph_google')
+        : t('llm_base_url_ph_openai'));
     $('#apt_llm_injector_model').attr('placeholder', google
-        ? '例如 gemini-1.5-flash、gemini-2.0-flash'
-        : '例如 gpt-4o-mini、openrouter/auto、你的自定義模型 ID');
+        ? t('llm_model_ph_google')
+        : t('llm_model_ph_openai'));
 }
 
 async function onGenerationAfterCommandsForLlmInjector(type, generationOptions = {}, dryRun = false) {
@@ -369,7 +382,7 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
     if (userInput.includes('[APT_SCENE:')) return;
 
     llmInjectorBusy = true;
-    const toast = toastr.info('正在判斷場景類型...', 'Auto Prompt Toggler');
+    const toast = toastr.info(t('llm_judging'), 'Auto Prompt Toggler');
     let injectSuccess = false;
     try {
         const templateValues = {
@@ -387,8 +400,8 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
         } else {
              // 備用防呆：如果完全沒設定，至少給個基本的提示詞
              settings.customMessages = [
-                 { role: 'system', content: applyLlmInjectorTemplate('你是一個 SillyTavern 場景分類器。請只輸出最適合用來觸發提示詞條目的短標籤或關鍵字，不要解釋。', templateValues) },
-                 { role: 'user', content: applyLlmInjectorTemplate(`請判斷目前對話與使用者輸入所屬的場景類型。\n\n可輸出的例子：戰鬥、日常、親密、探索、危險、受傷、睡眠、用餐、旅行、懸疑、其它。\n如果沒有明確場景，輸出「其它」。\n\n最近對話：\n{{recentMessages}}\n\n使用者輸入：\n{{userInput}}\n\n只輸出一個場景標籤。`, templateValues) }
+                 { role: 'system', content: applyLlmInjectorTemplate(t('llm_default_prompt_system'), templateValues) },
+                 { role: 'user', content: applyLlmInjectorTemplate(t('llm_default_prompt_user'), templateValues) }
              ];
         }
 
@@ -407,19 +420,19 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
         const logPanel = $('#apt_llm_log_panel');
         if (logPanel.length) {
             logPanel.empty();
-            let logHtml = `<div style="color: var(--SmartThemeQuoteColor); margin-bottom: 8px;">[${new Date().toLocaleTimeString()}] LLM 場景判斷已執行</div>`;
-            logHtml += `<div><strong>發送的提示詞順序：</strong></div>`;
+            let logHtml = `<div style="color: var(--SmartThemeQuoteColor); margin-bottom: 8px;">[${new Date().toLocaleTimeString()}] ${escapeHtml(t('llm_log_executed'))}</div>`;
+            logHtml += `<div><strong>${escapeHtml(t('llm_log_sent_order'))}</strong></div>`;
             settings.customMessages.forEach((msg, idx) => {
                 logHtml += `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid gray;">[${msg.role}]<br>${escapeHtml(msg.content)}</div>`;
             });
             logHtml += `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid gray;">[user (Main Prompt)]<br>${escapeHtml(prompt)}</div>`;
-            logHtml += `<div style="margin-top: 8px;"><strong>LLM 原始回覆：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(rawResult)}</span></div>`;
-            logHtml += `<div style="margin-top: 8px;"><strong>解析後標籤：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(result || '(空值)')}</span></div>`;
+            logHtml += `<div style="margin-top: 8px;"><strong>${escapeHtml(t('llm_log_raw_reply'))}</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(rawResult)}</span></div>`;
+            logHtml += `<div style="margin-top: 8px;"><strong>${escapeHtml(t('llm_log_parsed_label'))}</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(result || t('llm_log_empty_value'))}</span></div>`;
             logPanel.html(logHtml);
         }
 
         if (!result) {
-            throw new Error('LLM回傳空值，已中斷後續生成。');
+            throw new Error(t('llm_empty_result_aborted'));
         }
 
         templateValues.result = result;
@@ -427,15 +440,15 @@ async function onGenerationAfterCommandsForLlmInjector(type, generationOptions =
         textarea.val(`${userInput}${injection}`)[0].dispatchEvent(new Event('input', { bubbles: true }));
         
         if (logPanel.length) {
-             logPanel.append(`<div style="margin-top: 8px;"><strong>最終注入字串：</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(injection)}</span></div>`);
+             logPanel.append(`<div style="margin-top: 8px;"><strong>${escapeHtml(t('llm_log_final_injection'))}</strong><br><span style="color: var(--smart-theme-color);">${escapeHtml(injection)}</span></div>`);
         }
 
-        if (bridge.getNotificationsEnabled()) toastr.success(`場景判斷: ${result}`, 'Auto Prompt Toggler');
+        if (bridge.getNotificationsEnabled()) toastr.success(fmt(t('llm_scene_result'), result), 'Auto Prompt Toggler');
         bridge.forceRecheck();
         injectSuccess = true;
     } catch (e) {
         console.error('[APT] LLM scene injector failed:', e);
-        toastr.error(`LLM 場景注入失敗: ${e.message || e}`, 'Auto Prompt Toggler');
+        toastr.error(fmt(t('llm_injection_failed'), e.message || e), 'Auto Prompt Toggler');
         
         // Stop generation if LLM injector fails (including empty response)
         if (typeof stopGeneration === 'function') {
